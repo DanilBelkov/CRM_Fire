@@ -63,6 +63,11 @@
                     <Button Content="Костюмы" Tag="{x:Static models:CatalogItemType.Costume}" Click="SectionButton_Click"/>
                     <Button Content="Спектакли" Tag="{x:Static models:CatalogItemType.Performance}" Click="SectionButton_Click"/>
                     <Button Content="Теги и группы" Click="TagsButton_Click" Margin="0,18,0,4"/>
+                    <Button Content="Корзина" Click="TrashButton_Click"/>
+                    <Button Content="Экспорт Excel" Click="ExportButton_Click" Margin="0,18,0,4"/>
+                    <Button Content="Импорт Excel" Click="ImportButton_Click"/>
+                    <Button Content="Создать backup" Click="BackupButton_Click"/>
+                    <Button Content="Восстановить backup" Click="RestoreBackupButton_Click"/>
 
                     <TextBlock Text="Мои вкладки" Foreground="#EEF5F1" FontWeight="SemiBold" Margin="0,22,0,8"/>
                     <ItemsControl x:Name="SavedViewsList">
@@ -105,6 +110,7 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Margin="0,0,10,0">
                     <TextBlock Text="Группа тегов" Foreground="#8EA39A"/>
@@ -116,8 +122,11 @@
                 </StackPanel>
                 <CheckBox Grid.Column="2" x:Name="GroupByTagCheck" Content="Группировать" Foreground="#EEF5F1"
                           VerticalAlignment="Bottom" Margin="10,0,16,10" Checked="GroupByTagCheck_Changed" Unchecked="GroupByTagCheck_Changed"/>
-                <Button Grid.Column="3" Content="Сохранить вкладку" VerticalAlignment="Bottom" Click="SaveViewButton_Click"/>
-                <Button Grid.Column="4" Content="Сбросить" VerticalAlignment="Bottom" Click="ClearFiltersButton_Click" Margin="10,4,0,4"/>
+                <CheckBox Grid.Column="3" x:Name="SemanticSearchCheck" Content="Смысловой поиск" Foreground="#8EA39A"
+                          IsEnabled="False" ToolTip="Опциональный локальный режим будет добавлен позже; сейчас используется быстрый FTS5."
+                          VerticalAlignment="Bottom" Margin="0,0,16,10"/>
+                <Button Grid.Column="4" Content="Сохранить вкладку" VerticalAlignment="Bottom" Click="SaveViewButton_Click"/>
+                <Button Grid.Column="5" Content="Сбросить" VerticalAlignment="Bottom" Click="ClearFiltersButton_Click" Margin="10,4,0,4"/>
             </Grid>
 
             <ListBox Grid.Row="3" x:Name="ItemsList" Background="Transparent" BorderThickness="0"
@@ -162,7 +171,7 @@
             <ScrollViewer>
                 <StackPanel Margin="22">
                     <TextBlock Text="Карточка" Foreground="#EEF5F1" FontSize="22" FontWeight="SemiBold"/>
-                    <Image x:Name="DetailsImage" Height="190" Stretch="UniformToFill" Margin="0,16,0,12"/>
+                    <Image x:Name="DetailsImage" Height="350" Stretch="UniformToFill" Margin="0,16,0,12"/>
                     <TextBlock x:Name="DetailsTitle" Text="Выберите карточку" Foreground="#EEF5F1" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/>
                     <TextBlock x:Name="DetailsDescription" Foreground="#B8C7C0" Margin="0,10,0,0" TextWrapping="Wrap"/>
                     <TextBlock x:Name="DetailsMeta" Foreground="#8EA39A" Margin="0,14,0,0" TextWrapping="Wrap"/>
@@ -178,6 +187,12 @@
                         <Button Content="Редактировать" Click="EditButton_Click" MinWidth="138"/>
                         <Button Content="Удалить" Click="DeleteButton_Click" MinWidth="94" Margin="10,4,0,4" Background="#3A1D22" BorderBrush="#6A2E37"/>
                     </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Content="Восстановить" Click="RestoreItemButton_Click" MinWidth="138"/>
+                        <Button Content="Удалить навсегда" Click="PermanentDeleteButton_Click" MinWidth="140" Margin="10,4,0,4" Background="#3A1D22" BorderBrush="#6A2E37"/>
+                    </StackPanel>
+                    <TextBlock Text="История" Foreground="#EEF5F1" FontSize="16" FontWeight="SemiBold" Margin="0,22,0,8"/>
+                    <ItemsControl x:Name="AuditItems"/>
                 </StackPanel>
             </ScrollViewer>
         </Border>

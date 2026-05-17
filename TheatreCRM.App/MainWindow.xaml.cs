@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media.Imaging;
+using Microsoft.Win32;
 using TheatreCRM.App.Data;
 using TheatreCRM.App.Models;
 using TheatreCRM.App.Services;
@@ -14,10 +15,13 @@ public partial class MainWindow : Window
 {
     private readonly AppPaths _paths;
     private readonly TheatreRepository _repository;
+    private readonly ExcelDataService _excelDataService;
+    private readonly BackupService _backupService;
     private readonly ObservableCollection<CatalogItem> _items = [];
     private readonly ObservableCollection<SavedView> _savedViews = [];
     private CatalogItemType _currentType = CatalogItemType.Clothing;
     private bool _isLoadingFilters;
+    private bool _isTrashMode;
 
     public MainWindow()
     {
@@ -26,6 +30,9 @@ public partial class MainWindow : Window
         _paths.EnsureCreated();
         _repository = new TheatreRepository(_paths.DatabasePath);
         _repository.Initialize();
+        _excelDataService = new ExcelDataService(_repository, _paths);
+        _backupService = new BackupService(_paths);
+        TryCreateAutomaticBackup();
         ItemsList.ItemsSource = _items;
         SavedViewsList.ItemsSource = _savedViews;
         LoadFilters();
@@ -48,6 +55,66 @@ public partial class MainWindow : Window
         LoadFilters();
         LoadSavedViews();
         RefreshList();
+    }
+
+    private void TrashButton_Click(object sender, RoutedEventArgs e)
+    {
+        _isTrashMode = true;
+        SectionTitle.Text = "Корзина";
+        CreateButton.Content = "Создание недоступно";
+        RefreshList();
+        ClearDetails();
+    }
+
+    private void ExportButton_Click(object sender, RoutedEventArgs e)
+    {
+        var includePhotos = MessageBox.Show("Добавить в Excel пути к фотографиям?", "Экспорт Excel", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+        var path = _excelDataService.ExportDatabase(includePhotos);
+        MessageBox.Show($"Экспорт готов:\n{path}", "Экспорт Excel", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void ImportButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Выберите Excel-файл",
+            Filter = "Excel или CSV|*.xlsx;*.csv|Excel|*.xlsx|CSV|*.csv"
+        };
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        var count = _excelDataService.ImportCatalog(dialog.FileName);
+        LoadFilters();
+        RefreshList();
+        MessageBox.Show($"Импортировано карточек: {count}", "Импорт Excel", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void BackupButton_Click(object sender, RoutedEventArgs e)
+    {
+        var path = _backupService.CreateBackup();
+        MessageBox.Show($"Резервная копия создана:\n{path}", "Backup", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void RestoreBackupButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Выберите backup",
+            Filter = "Backup zip|*.zip"
+        };
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        _backupService.RestoreBackup(dialog.FileName);
+        _repository.Initialize();
+        LoadFilters();
+        LoadSavedViews();
+        RefreshList();
+        MessageBox.Show("Backup восстановлен. Перед восстановлением создана текущая резервная копия.", "Backup", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e) => RefreshList();
@@ -121,6 +188,11 @@ public partial class MainWindow : Window
 
     private void CreateButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_isTrashMode)
+        {
+            return;
+        }
+
         var item = new CatalogItem { Type = _currentType, Title = _currentType.CreateTitle() };
         OpenEditor(item);
     }
@@ -186,6 +258,7 @@ public partial class MainWindow : Window
 
     private void LoadSection(CatalogItemType type)
     {
+        _isTrashMode = false;
         _currentType = type;
         SectionTitle.Text = type.ToRussian();
         CreateButton.Content = $"Создать: {type.CreateTitle().ToLowerInvariant()}";
@@ -202,6 +275,17 @@ public partial class MainWindow : Window
         }
 
         _items.Clear();
+        if (_isTrashMode)
+        {
+            foreach (var deletedItem in _repository.GetTrash())
+            {
+                _items.Add(deletedItem);
+            }
+            SectionSubtitle.Text = $"{_items.Count} карточек в корзине";
+            ApplyGrouping();
+            return;
+        }
+
         var tagGroup = TagGroupFilter.SelectedItem as TagGroup;
         var tag = TagFilter.SelectedItem as Tag;
         var groupId = GroupByTagCheck.IsChecked == true ? tagGroup?.Id : null;
@@ -247,6 +331,7 @@ public partial class MainWindow : Window
             $"Теги: {item.TagsText}"
         });
         RelatedItems.ItemsSource = item.RelatedItems;
+        AuditItems.ItemsSource = _repository.GetAuditLog(item.Id);
         SetDetailsImage(item.MainPhotoPath);
     }
 
@@ -256,7 +341,38 @@ public partial class MainWindow : Window
         DetailsDescription.Text = "";
         DetailsMeta.Text = "";
         RelatedItems.ItemsSource = null;
+        AuditItems.ItemsSource = null;
         DetailsImage.Source = null;
+    }
+
+    private void RestoreItemButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ItemsList.SelectedItem is not CatalogItem item || !_isTrashMode)
+        {
+            return;
+        }
+
+        _repository.RestoreFromTrash(item.Id);
+        RefreshList();
+        ClearDetails();
+    }
+
+    private void PermanentDeleteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ItemsList.SelectedItem is not CatalogItem item || !_isTrashMode)
+        {
+            return;
+        }
+
+        var result = MessageBox.Show($"Окончательно удалить \"{item.Title}\"? Это действие нельзя отменить.", "Удалить навсегда", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _repository.PermanentlyDelete(item.Id);
+        RefreshList();
+        ClearDetails();
     }
 
     private void LoadFilters()
@@ -337,4 +453,20 @@ public partial class MainWindow : Window
     }
 
     private static string ValueOrDash(string value) => string.IsNullOrWhiteSpace(value) ? "-" : value;
+
+    private void TryCreateAutomaticBackup()
+    {
+        try
+        {
+            var todayPrefix = $"theatre-crm-backup-{DateTime.Now:yyyyMMdd}";
+            if (!Directory.Exists(_paths.BackupsPath) || !Directory.EnumerateFiles(_paths.BackupsPath, $"{todayPrefix}*.zip").Any())
+            {
+                _backupService.CreateBackup();
+            }
+        }
+        catch
+        {
+            // Автоматический backup не должен блокировать запуск приложения.
+        }
+    }
 }

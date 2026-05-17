@@ -1,5 +1,6 @@
 using TheatreCRM.App.Data;
 using TheatreCRM.App.Models;
+using TheatreCRM.App.Services;
 
 namespace TheatreCRM.Tests;
 
@@ -221,6 +222,111 @@ public sealed class RepositoryTests : IDisposable
         Assert.Equal(group.Id, loaded.TagGroupId);
         Assert.Equal(tag.Id, loaded.TagId);
         Assert.True(loaded.GroupByTagGroup);
+    }
+
+    [Fact]
+    public void FtsSearch_FindsByDescriptionAndUpdatesAfterEdit()
+    {
+        var item = SaveItem(CatalogItemType.Prop, "Книга");
+        item.Description = "Старинный фолиант для библиотеки";
+        _repository.Save(item);
+
+        Assert.Single(_repository.Search(CatalogItemType.Prop, "фолиант"));
+
+        item.Description = "Современный журнал";
+        _repository.Save(item);
+
+        Assert.Empty(_repository.Search(CatalogItemType.Prop, "фолиант"));
+        Assert.Single(_repository.Search(CatalogItemType.Prop, "журнал"));
+    }
+
+    [Fact]
+    public void Trash_RestoreAndPermanentDelete_WorkWithoutLosingControl()
+    {
+        var item = SaveItem(CatalogItemType.Clothing, "Плащ для корзины");
+
+        _repository.SoftDelete(item.Id);
+
+        Assert.Single(_repository.GetTrash());
+        Assert.Empty(_repository.Search(CatalogItemType.Clothing, "корзины"));
+
+        _repository.RestoreFromTrash(item.Id);
+
+        Assert.Empty(_repository.GetTrash());
+        Assert.Single(_repository.Search(CatalogItemType.Clothing, "корзины"));
+
+        _repository.SoftDelete(item.Id);
+        _repository.PermanentlyDelete(item.Id);
+
+        Assert.Null(_repository.GetById(item.Id));
+        Assert.Empty(_repository.GetTrash());
+    }
+
+    [Fact]
+    public void AuditLog_RecordsCreateUpdateAndDelete()
+    {
+        var item = SaveItem(CatalogItemType.Performance, "История");
+        item.Description = "Изменение";
+        _repository.Save(item);
+        _repository.SoftDelete(item.Id);
+
+        var audit = _repository.GetAuditLog(item.Id);
+
+        Assert.Contains(audit, row => row.Contains("Создание карточки"));
+        Assert.Contains(audit, row => row.Contains("Обновление карточки"));
+        Assert.Contains(audit, row => row.Contains("Удаление в корзину"));
+    }
+
+    [Fact]
+    public void Photos_CanBeLinkedToCatalogItem()
+    {
+        var item = SaveItem(CatalogItemType.Clothing, "Фото карточка");
+
+        _repository.AddPhoto(item.Id, "photos/clothing/test.jpg");
+        _repository.AddPhoto(item.Id, "photos/clothing/test-2.jpg");
+
+        var photos = _repository.GetPhotos(item.Id);
+        Assert.Equal(["photos/clothing/test.jpg", "photos/clothing/test-2.jpg"], photos);
+    }
+
+    [Fact]
+    public void ExcelExportAndImport_RoundTripsCatalogRows()
+    {
+        var paths = new AppPaths();
+        paths.EnsureCreated();
+        var service = new ExcelDataService(_repository, paths);
+        var item = SaveItem(CatalogItemType.Clothing, "Экспортируемая шляпа");
+        item.Tags.Add("excel");
+        _repository.Save(item);
+
+        var exportPath = service.ExportDatabase(includePhotos: false);
+
+        Assert.True(File.Exists(exportPath));
+
+        var secondDatabase = Path.Combine(_rootPath, "import.sqlite");
+        var secondRepository = new TheatreRepository(secondDatabase);
+        secondRepository.Initialize();
+        var importService = new ExcelDataService(secondRepository, paths);
+
+        var imported = importService.ImportCatalog(exportPath);
+
+        Assert.True(imported >= 1);
+        Assert.Contains(secondRepository.Search(CatalogItemType.Clothing, "шляпа"), x => x.Title == "Экспортируемая шляпа");
+    }
+
+    [Fact]
+    public void CsvImport_CreatesCatalogRows()
+    {
+        var csvPath = Path.Combine(_rootPath, "import.csv");
+        File.WriteAllText(csvPath, "Название;Описание;Инвентарный номер;Место хранения;Состояние;Ответственный;Теги\nCSV шляпа;Описание;INV-1;Сектор;Хорошее;Иван;лето|шляпа");
+        var service = new ExcelDataService(_repository, new AppPaths());
+
+        var imported = service.ImportCatalog(csvPath);
+
+        Assert.Equal(1, imported);
+        var item = Assert.Single(_repository.Search(CatalogItemType.Clothing, "CSV"));
+        Assert.Contains("лето", item.Tags);
+        Assert.Contains("шляпа", item.Tags);
     }
 
     private CatalogItem SaveItem(CatalogItemType type, string title)

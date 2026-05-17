@@ -23,6 +23,19 @@
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="12,8"/>
             <Setter Property="Margin" Value="0,4"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
@@ -35,6 +48,7 @@
 
         <StackPanel Grid.Column="0" Margin="0,0,18,0">
             <TextBlock Text="Группы тегов" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,12"/>
+            <Button Content="Новая группа" Click="NewGroupButton_Click"/>
             <ListBox x:Name="GroupsList" Height="390" DisplayMemberPath="Name" SelectionChanged="GroupsList_SelectionChanged"/>
             <TextBlock Text="Название группы" Margin="0,14,0,0"/>
             <TextBox x:Name="GroupNameBox"/>
@@ -45,6 +59,7 @@
 
         <StackPanel Grid.Column="1" Margin="0,0,18,0">
             <TextBlock Text="Теги выбранной группы" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,12"/>
+            <Button Content="Новый тег" Click="NewTagButton_Click"/>
             <ListBox x:Name="TagsList" Height="390" DisplayMemberPath="DisplayName" SelectionChanged="TagsList_SelectionChanged"/>
             <TextBlock Text="Название тега" Margin="0,14,0,0"/>
             <TextBox x:Name="TagNameBox"/>

@@ -91,6 +91,8 @@
                     <TextBox x:Name="PhotoBox" IsReadOnly="True" DockPanel.Dock="Left"/>
                     <Button Content="Выбрать фото" DockPanel.Dock="Right" Click="ChoosePhotoButton_Click" Margin="12,4,0,12"/>
                 </DockPanel>
+                <Button Content="Добавить фото в галерею" Click="AddGalleryPhotoButton_Click" HorizontalAlignment="Left"/>
+                <ListBox x:Name="PhotosList" Height="72" Margin="0,6,0,12"/>
 
                 <StackPanel x:Name="SpecificFields"/>
 

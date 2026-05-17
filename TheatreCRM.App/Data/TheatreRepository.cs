@@ -88,6 +88,24 @@ public sealed class TheatreRepository
             IsShownInSidebar INTEGER NOT NULL DEFAULT 1
         );
 
+        CREATE TABLE IF NOT EXISTS AuditLog (
+            Id TEXT PRIMARY KEY,
+            EntityId TEXT NULL,
+            EntityTitle TEXT NULL,
+            Operation TEXT NOT NULL,
+            Details TEXT NULL,
+            CreatedAt TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS Photos (
+            Id TEXT PRIMARY KEY,
+            CatalogItemId TEXT NOT NULL,
+            RelativePath TEXT NOT NULL,
+            SortOrder INTEGER NOT NULL DEFAULT 0,
+            CreatedAt TEXT NOT NULL,
+            FOREIGN KEY (CatalogItemId) REFERENCES CatalogItems(Id) ON DELETE CASCADE
+        );
+
         CREATE TABLE IF NOT EXISTS CostumeClothingItems (
             CostumeId TEXT NOT NULL,
             ClothingItemId TEXT NOT NULL,
@@ -134,6 +152,8 @@ public sealed class TheatreRepository
         command.ExecuteNonQuery();
         EnsureTagSchema(connection);
         EnsureDefaultTagGroup(connection);
+        EnsureSearchSchema(connection);
+        RebuildSearchIndex(connection);
     }
 
     public List<CatalogItem> Search(CatalogItemType type, string searchText, string? tagGroupId = null, string? tagId = null)
@@ -142,17 +162,23 @@ public sealed class TheatreRepository
         using var command = connection.CreateCommand();
         var hasSearch = !string.IsNullOrWhiteSpace(searchText);
         var hasTag = !string.IsNullOrWhiteSpace(tagId);
-        command.CommandText = $"""
+        command.CommandText = hasSearch ? $"""
+        SELECT ci.* FROM CatalogItems ci
+        JOIN CatalogItemsFts fts ON fts.CatalogItemId = ci.Id
+        WHERE ci.Type = $type AND ci.DeletedAt IS NULL
+        AND CatalogItemsFts MATCH $search
+        {(hasTag ? "AND EXISTS (SELECT 1 FROM CatalogItemTags cit WHERE cit.CatalogItemId = ci.Id AND cit.TagId = $tagId)" : "")}
+        ORDER BY ci.UpdatedAt DESC, ci.Title COLLATE NOCASE
+        """ : $"""
         SELECT * FROM CatalogItems
         WHERE Type = $type AND DeletedAt IS NULL
-        {(hasSearch ? "AND (Title LIKE $search OR Description LIKE $search)" : "")}
         {(hasTag ? "AND EXISTS (SELECT 1 FROM CatalogItemTags cit WHERE cit.CatalogItemId = CatalogItems.Id AND cit.TagId = $tagId)" : "")}
         ORDER BY UpdatedAt DESC, Title COLLATE NOCASE
         """;
         command.Parameters.AddWithValue("$type", (int)type);
         if (hasSearch)
         {
-            command.Parameters.AddWithValue("$search", $"%{searchText.Trim()}%");
+            command.Parameters.AddWithValue("$search", EscapeFtsQuery(searchText.Trim()));
         }
         if (hasTag)
         {
@@ -211,18 +237,159 @@ public sealed class TheatreRepository
         command.ExecuteNonQuery();
 
         SaveTags(connection, transaction, item);
+        UpsertSearchIndex(connection, transaction, item);
+        WriteAudit(connection, transaction, item.Id, item.Title, exists ? "Обновление карточки" : "Создание карточки", item.Type.ToRussian());
         transaction.Commit();
     }
 
     public void SoftDelete(string id)
     {
         using var connection = OpenConnection();
+        using var transaction = connection.BeginTransaction();
         using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = "UPDATE CatalogItems SET DeletedAt = $deletedAt, UpdatedAt = $updatedAt WHERE Id = $id";
         command.Parameters.AddWithValue("$id", id);
         command.Parameters.AddWithValue("$deletedAt", DateTime.UtcNow.ToString("O"));
         command.Parameters.AddWithValue("$updatedAt", DateTime.UtcNow.ToString("O"));
         command.ExecuteNonQuery();
+        using var deleteFts = connection.CreateCommand();
+        deleteFts.Transaction = transaction;
+        deleteFts.CommandText = "DELETE FROM CatalogItemsFts WHERE CatalogItemId = $id";
+        deleteFts.Parameters.AddWithValue("$id", id);
+        deleteFts.ExecuteNonQuery();
+        WriteAudit(connection, transaction, id, GetTitle(connection, id), "Удаление в корзину", "");
+        transaction.Commit();
+    }
+
+    public void RestoreFromTrash(string id)
+    {
+        using var connection = OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "UPDATE CatalogItems SET DeletedAt = NULL, UpdatedAt = $updatedAt WHERE Id = $id";
+        command.Parameters.AddWithValue("$id", id);
+        command.Parameters.AddWithValue("$updatedAt", DateTime.UtcNow.ToString("O"));
+        command.ExecuteNonQuery();
+        var item = GetByIdIncludingDeleted(connection, id);
+        if (item is not null)
+        {
+            UpsertSearchIndex(connection, transaction, item);
+            WriteAudit(connection, transaction, id, item.Title, "Восстановление из корзины", "");
+        }
+        transaction.Commit();
+    }
+
+    public void PermanentlyDelete(string id)
+    {
+        using var connection = OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        var title = GetTitle(connection, id);
+        using var deleteFts = connection.CreateCommand();
+        deleteFts.Transaction = transaction;
+        deleteFts.CommandText = "DELETE FROM CatalogItemsFts WHERE CatalogItemId = $id";
+        deleteFts.Parameters.AddWithValue("$id", id);
+        deleteFts.ExecuteNonQuery();
+
+        using var delete = connection.CreateCommand();
+        delete.Transaction = transaction;
+        delete.CommandText = "DELETE FROM CatalogItems WHERE Id = $id";
+        delete.Parameters.AddWithValue("$id", id);
+        delete.ExecuteNonQuery();
+        WriteAudit(connection, transaction, id, title, "Окончательное удаление", "");
+        transaction.Commit();
+    }
+
+    public List<CatalogItem> GetTrash()
+    {
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT * FROM CatalogItems WHERE DeletedAt IS NOT NULL ORDER BY UpdatedAt DESC";
+        using var reader = command.ExecuteReader();
+        var items = new List<CatalogItem>();
+        while (reader.Read())
+        {
+            var item = ReadCatalogItem(reader);
+            FillTags(connection, item);
+            FillRelatedItems(connection, item);
+            items.Add(item);
+        }
+
+        return items;
+    }
+
+    public List<CatalogItem> GetAllItems(bool includeDeleted = false)
+    {
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = includeDeleted
+            ? "SELECT * FROM CatalogItems ORDER BY Type, Title COLLATE NOCASE"
+            : "SELECT * FROM CatalogItems WHERE DeletedAt IS NULL ORDER BY Type, Title COLLATE NOCASE";
+        using var reader = command.ExecuteReader();
+        var items = new List<CatalogItem>();
+        while (reader.Read())
+        {
+            var item = ReadCatalogItem(reader);
+            FillTags(connection, item);
+            FillRelatedItems(connection, item);
+            items.Add(item);
+        }
+
+        return items;
+    }
+
+    public List<string> GetAuditLog(string? entityId = null)
+    {
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+        SELECT CreatedAt, Operation, COALESCE(EntityTitle, ''), COALESCE(Details, '')
+        FROM AuditLog
+        WHERE $entityId IS NULL OR EntityId = $entityId
+        ORDER BY CreatedAt DESC
+        LIMIT 200
+        """;
+        command.Parameters.AddWithValue("$entityId", (object?)entityId ?? DBNull.Value);
+        using var reader = command.ExecuteReader();
+        var result = new List<string>();
+        while (reader.Read())
+        {
+            result.Add($"{DateTime.Parse(reader.GetString(0)):dd.MM.yyyy HH:mm} | {reader.GetString(1)} | {reader.GetString(2)} | {reader.GetString(3)}");
+        }
+
+        return result;
+    }
+
+    public void AddPhoto(string catalogItemId, string relativePath)
+    {
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+        INSERT INTO Photos (Id, CatalogItemId, RelativePath, SortOrder, CreatedAt)
+        VALUES ($id, $catalogItemId, $relativePath, (SELECT COUNT(*) FROM Photos WHERE CatalogItemId = $catalogItemId), $createdAt)
+        """;
+        command.Parameters.AddWithValue("$id", Guid.NewGuid().ToString("N"));
+        command.Parameters.AddWithValue("$catalogItemId", catalogItemId);
+        command.Parameters.AddWithValue("$relativePath", relativePath);
+        command.Parameters.AddWithValue("$createdAt", DateTime.UtcNow.ToString("O"));
+        command.ExecuteNonQuery();
+    }
+
+    public List<string> GetPhotos(string catalogItemId)
+    {
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT RelativePath FROM Photos WHERE CatalogItemId = $id ORDER BY SortOrder";
+        command.Parameters.AddWithValue("$id", catalogItemId);
+        using var reader = command.ExecuteReader();
+        var result = new List<string>();
+        while (reader.Read())
+        {
+            result.Add(reader.GetString(0));
+        }
+
+        return result;
     }
 
     public List<CatalogSummary> GetCandidates(CatalogItemType type, string? excludeId = null)
@@ -552,6 +719,103 @@ public sealed class TheatreRepository
         update.ExecuteNonQuery();
     }
 
+    private static void EnsureSearchSchema(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+        CREATE VIRTUAL TABLE IF NOT EXISTS CatalogItemsFts USING fts5(
+            CatalogItemId UNINDEXED,
+            Title,
+            Description,
+            InventoryNumber,
+            Notes
+        );
+        """;
+        command.ExecuteNonQuery();
+    }
+
+    private static void RebuildSearchIndex(SqliteConnection connection)
+    {
+        using var count = connection.CreateCommand();
+        count.CommandText = "SELECT COUNT(*) FROM CatalogItemsFts";
+        if (Convert.ToInt32(count.ExecuteScalar()) > 0)
+        {
+            return;
+        }
+
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+        INSERT INTO CatalogItemsFts (CatalogItemId, Title, Description, InventoryNumber, Notes)
+        SELECT Id, Title, COALESCE(Description, ''), COALESCE(InventoryNumber, ''), COALESCE(Notes, '')
+        FROM CatalogItems
+        WHERE DeletedAt IS NULL
+        """;
+        command.ExecuteNonQuery();
+    }
+
+    private static void UpsertSearchIndex(SqliteConnection connection, SqliteTransaction transaction, CatalogItem item)
+    {
+        using var delete = connection.CreateCommand();
+        delete.Transaction = transaction;
+        delete.CommandText = "DELETE FROM CatalogItemsFts WHERE CatalogItemId = $id";
+        delete.Parameters.AddWithValue("$id", item.Id);
+        delete.ExecuteNonQuery();
+
+        using var insert = connection.CreateCommand();
+        insert.Transaction = transaction;
+        insert.CommandText = """
+        INSERT INTO CatalogItemsFts (CatalogItemId, Title, Description, InventoryNumber, Notes)
+        VALUES ($id, $title, $description, $inventoryNumber, $notes)
+        """;
+        insert.Parameters.AddWithValue("$id", item.Id);
+        insert.Parameters.AddWithValue("$title", item.Title);
+        insert.Parameters.AddWithValue("$description", item.Description);
+        insert.Parameters.AddWithValue("$inventoryNumber", item.InventoryNumber);
+        insert.Parameters.AddWithValue("$notes", item.Notes);
+        insert.ExecuteNonQuery();
+    }
+
+    private static void WriteAudit(SqliteConnection connection, SqliteTransaction transaction, string? entityId, string? entityTitle, string operation, string details)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+        INSERT INTO AuditLog (Id, EntityId, EntityTitle, Operation, Details, CreatedAt)
+        VALUES ($id, $entityId, $entityTitle, $operation, $details, $createdAt)
+        """;
+        command.Parameters.AddWithValue("$id", Guid.NewGuid().ToString("N"));
+        command.Parameters.AddWithValue("$entityId", (object?)entityId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$entityTitle", (object?)entityTitle ?? DBNull.Value);
+        command.Parameters.AddWithValue("$operation", operation);
+        command.Parameters.AddWithValue("$details", details);
+        command.Parameters.AddWithValue("$createdAt", DateTime.UtcNow.ToString("O"));
+        command.ExecuteNonQuery();
+    }
+
+    private static string GetTitle(SqliteConnection connection, string id)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COALESCE(Title, '') FROM CatalogItems WHERE Id = $id";
+        command.Parameters.AddWithValue("$id", id);
+        return command.ExecuteScalar() as string ?? "";
+    }
+
+    private static CatalogItem? GetByIdIncludingDeleted(SqliteConnection connection, string id)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT * FROM CatalogItems WHERE Id = $id";
+        command.Parameters.AddWithValue("$id", id);
+        using var reader = command.ExecuteReader();
+        return reader.Read() ? ReadCatalogItem(reader) : null;
+    }
+
+    private static string EscapeFtsQuery(string query)
+    {
+        var parts = query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(part => "\"" + part.Replace("\"", "\"\"") + "\"");
+        return string.Join(" ", parts);
+    }
+
     private static void SaveTags(SqliteConnection connection, SqliteTransaction transaction, CatalogItem item)
     {
         using var delete = connection.CreateCommand();
@@ -728,7 +992,8 @@ public sealed class TheatreRepository
         PremiereDate = ReadString(reader, "PremiereDate"),
         Season = ReadString(reader, "Season"),
         CreatedAt = DateTime.Parse(ReadString(reader, "CreatedAt")),
-        UpdatedAt = DateTime.Parse(ReadString(reader, "UpdatedAt"))
+        UpdatedAt = DateTime.Parse(ReadString(reader, "UpdatedAt")),
+        DeletedAt = ReadString(reader, "DeletedAt")
     };
 
     private static string ReadString(SqliteDataReader reader, string name)

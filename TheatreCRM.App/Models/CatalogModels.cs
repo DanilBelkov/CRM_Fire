@@ -60,6 +60,7 @@ public sealed class CatalogItem
     public string Season { get; set; } = "";
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public string DeletedAt { get; set; } = "";
     public ObservableCollection<string> Tags { get; } = [];
     public ObservableCollection<CatalogSummary> RelatedItems { get; } = [];
     public string GroupHeader { get; set; } = "Без группировки";

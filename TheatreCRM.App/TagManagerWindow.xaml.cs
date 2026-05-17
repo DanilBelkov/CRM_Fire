@@ -8,6 +8,8 @@ namespace TheatreCRM.App;
 public partial class TagManagerWindow : Window
 {
     private readonly TheatreRepository _repository;
+    private bool _creatingGroup;
+    private bool _creatingTag;
 
     public TagManagerWindow(TheatreRepository repository)
     {
@@ -18,6 +20,7 @@ public partial class TagManagerWindow : Window
 
     private void GroupsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        _creatingGroup = false;
         if (GroupsList.SelectedItem is TagGroup group)
         {
             GroupNameBox.Text = group.Name;
@@ -34,6 +37,7 @@ public partial class TagManagerWindow : Window
 
     private void TagsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        _creatingTag = false;
         if (TagsList.SelectedItem is Tag tag)
         {
             TagNameBox.Text = tag.Name;
@@ -48,6 +52,24 @@ public partial class TagManagerWindow : Window
         }
     }
 
+    private void NewGroupButton_Click(object sender, RoutedEventArgs e)
+    {
+        GroupsList.SelectedItem = null;
+        _creatingGroup = true;
+        GroupNameBox.Text = "";
+        GroupDescriptionBox.Text = "";
+        GroupNameBox.Focus();
+    }
+
+    private void NewTagButton_Click(object sender, RoutedEventArgs e)
+    {
+        TagsList.SelectedItem = null;
+        _creatingTag = true;
+        TagNameBox.Text = "";
+        TagDescriptionBox.Text = "";
+        TagNameBox.Focus();
+    }
+
     private void SaveGroupButton_Click(object sender, RoutedEventArgs e)
     {
         if (string.IsNullOrWhiteSpace(GroupNameBox.Text))
@@ -56,7 +78,7 @@ public partial class TagManagerWindow : Window
             return;
         }
 
-        var group = GroupsList.SelectedItem as TagGroup ?? new TagGroup();
+        var group = !_creatingGroup && GroupsList.SelectedItem is TagGroup selectedGroup ? selectedGroup : new TagGroup();
         group.Name = GroupNameBox.Text.Trim();
         group.Description = GroupDescriptionBox.Text.Trim();
         _repository.SaveTagGroup(group);
@@ -77,7 +99,7 @@ public partial class TagManagerWindow : Window
             return;
         }
 
-        var tag = TagsList.SelectedItem as Tag ?? new Tag();
+        var tag = !_creatingTag && TagsList.SelectedItem is Tag selectedTag ? selectedTag : new Tag();
         tag.GroupId = group.Id;
         tag.Name = TagNameBox.Text.Trim();
         tag.Description = TagDescriptionBox.Text.Trim();

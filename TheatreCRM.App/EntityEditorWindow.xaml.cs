@@ -14,6 +14,7 @@ public partial class EntityEditorWindow : Window
     private readonly CatalogItem _item;
     private readonly Dictionary<string, TextBox> _fields = [];
     private readonly Dictionary<string, ListBox> _linkLists = [];
+    private readonly List<string> _newGalleryPhotos = [];
     private string _selectedSourcePhoto = "";
 
     public EntityEditorWindow(TheatreRepository repository, AppPaths paths, CatalogItem item)
@@ -44,6 +45,7 @@ public partial class EntityEditorWindow : Window
         ResponsibleBox.Text = _item.ResponsiblePerson;
         TagsBox.Text = string.Join(", ", _item.Tags);
         PhotoBox.Text = _item.MainPhotoPath;
+        PhotosList.ItemsSource = _repository.GetPhotos(_item.Id);
         SelectComboValue(ConditionBox, string.IsNullOrWhiteSpace(_item.Condition) ? "Хорошее" : _item.Condition);
 
         SetField("Size", _item.Size);
@@ -185,6 +187,22 @@ public partial class EntityEditorWindow : Window
         }
     }
 
+    private void AddGalleryPhotoButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Выберите фото для галереи",
+            Filter = "Изображения|*.jpg;*.jpeg;*.png;*.bmp;*.webp|Все файлы|*.*"
+        };
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            var relativePath = _paths.CopyPhoto(dialog.FileName, _item.Type);
+            _newGalleryPhotos.Add(relativePath);
+            PhotosList.ItemsSource = _repository.GetPhotos(_item.Id).Concat(_newGalleryPhotos).ToList();
+        }
+    }
+
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
         if (string.IsNullOrWhiteSpace(TitleBox.Text))
@@ -228,6 +246,10 @@ public partial class EntityEditorWindow : Window
         _item.Season = GetField("Season");
 
         _repository.Save(_item);
+        foreach (var relativePath in _newGalleryPhotos.Where(path => !string.IsNullOrWhiteSpace(path)))
+        {
+            _repository.AddPhoto(_item.Id, relativePath);
+        }
         SaveLinks();
         DialogResult = true;
     }
