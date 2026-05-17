@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="TheatreCRM.App/TheatreCRM.App.csproj" />
+  <Project Path="TheatreCRM.Tests/TheatreCRM.Tests.csproj" />
+</Solution>

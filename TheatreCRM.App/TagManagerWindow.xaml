@@ -1,0 +1,67 @@
+<Window x:Class="TheatreCRM.App.TagManagerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Теги и группы" Height="680" Width="980"
+        MinHeight="600" MinWidth="900"
+        Background="#101413" WindowStartupLocation="CenterOwner">
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#EEF5F1"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Foreground" Value="#EEF5F1"/>
+            <Setter Property="Background" Value="#17201D"/>
+            <Setter Property="BorderBrush" Value="#2B3A35"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="9,7"/>
+            <Setter Property="Margin" Value="0,4,0,10"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Foreground" Value="#EEF5F1"/>
+            <Setter Property="Background" Value="#1D2925"/>
+            <Setter Property="BorderBrush" Value="#2B3A35"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Margin" Value="0,4"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="22">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="280"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="260"/>
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0" Margin="0,0,18,0">
+            <TextBlock Text="Группы тегов" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,12"/>
+            <ListBox x:Name="GroupsList" Height="390" DisplayMemberPath="Name" SelectionChanged="GroupsList_SelectionChanged"/>
+            <TextBlock Text="Название группы" Margin="0,14,0,0"/>
+            <TextBox x:Name="GroupNameBox"/>
+            <TextBlock Text="Описание группы"/>
+            <TextBox x:Name="GroupDescriptionBox"/>
+            <Button Content="Сохранить группу" Click="SaveGroupButton_Click" Background="#21A66B" Foreground="#06110C"/>
+        </StackPanel>
+
+        <StackPanel Grid.Column="1" Margin="0,0,18,0">
+            <TextBlock Text="Теги выбранной группы" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,12"/>
+            <ListBox x:Name="TagsList" Height="390" DisplayMemberPath="DisplayName" SelectionChanged="TagsList_SelectionChanged"/>
+            <TextBlock Text="Название тега" Margin="0,14,0,0"/>
+            <TextBox x:Name="TagNameBox"/>
+            <TextBlock Text="Описание тега"/>
+            <TextBox x:Name="TagDescriptionBox"/>
+            <Button Content="Сохранить тег" Click="SaveTagButton_Click" Background="#21A66B" Foreground="#06110C"/>
+        </StackPanel>
+
+        <StackPanel Grid.Column="2">
+            <TextBlock Text="Безопасные действия" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,12"/>
+            <TextBlock x:Name="UsageText" Text="Выберите тег" Foreground="#8EA39A" TextWrapping="Wrap" Margin="0,0,0,14"/>
+            <Button Content="Архивировать тег" Click="ArchiveTagButton_Click"/>
+            <TextBlock Text="Заменить выбранный тег на:" Margin="0,18,0,4"/>
+            <ComboBox x:Name="ReplacementTagBox" DisplayMemberPath="DisplayName" Margin="0,4,0,8"/>
+            <Button Content="Заменить тег" Click="ReplaceTagButton_Click"/>
+            <Button Content="Снять тег со всех карточек" Click="RemoveTagLinksButton_Click" Background="#3A1D22" BorderBrush="#6A2E37" Margin="0,18,0,4"/>
+            <TextBlock Text="Карточки не удаляются при любом действии с тегом." Foreground="#8EA39A" TextWrapping="Wrap" Margin="0,18,0,0"/>
+        </StackPanel>
+    </Grid>
+</Window>

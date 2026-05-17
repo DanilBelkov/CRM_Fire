@@ -1,0 +1,101 @@
+<Window x:Class="TheatreCRM.App.EntityEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Карточка" Height="760" Width="820" MinHeight="620" MinWidth="760"
+        Background="#101413" WindowStartupLocation="CenterOwner">
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#EEF5F1"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Foreground" Value="#EEF5F1"/>
+            <Setter Property="Background" Value="#17201D"/>
+            <Setter Property="BorderBrush" Value="#2B3A35"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="9,7"/>
+            <Setter Property="Margin" Value="0,4,0,12"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Margin" Value="0,4,0,12"/>
+            <Setter Property="Padding" Value="8,6"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Foreground" Value="#EEF5F1"/>
+            <Setter Property="Background" Value="#1D2925"/>
+            <Setter Property="BorderBrush" Value="#2B3A35"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="14,9"/>
+            <Setter Property="Margin" Value="0,4"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel Margin="24">
+        <DockPanel DockPanel.Dock="Bottom" LastChildFill="False" Margin="0,18,0,0">
+            <Button Content="Сохранить" DockPanel.Dock="Right" Click="SaveButton_Click" Background="#21A66B" BorderBrush="#2CC77F" Foreground="#06110C" FontWeight="SemiBold" MinWidth="120"/>
+            <Button Content="Отмена" DockPanel.Dock="Right" Click="CancelButton_Click" MinWidth="100" Margin="0,4,12,4"/>
+        </DockPanel>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock x:Name="HeaderText" FontSize="24" FontWeight="SemiBold" Margin="0,0,0,18"/>
+
+                <TextBlock Text="Название"/>
+                <TextBox x:Name="TitleBox"/>
+
+                <TextBlock Text="Описание"/>
+                <TextBox x:Name="DescriptionBox" AcceptsReturn="True" Height="88" TextWrapping="Wrap"/>
+
+                <UniformGrid Columns="2">
+                    <StackPanel Margin="0,0,10,0">
+                        <TextBlock Text="Инвентарный номер"/>
+                        <TextBox x:Name="InventoryBox"/>
+                    </StackPanel>
+                    <StackPanel Margin="10,0,0,0">
+                        <TextBlock Text="Место хранения"/>
+                        <TextBox x:Name="StorageBox"/>
+                    </StackPanel>
+                    <StackPanel Margin="0,0,10,0">
+                        <TextBlock Text="Состояние"/>
+                        <ComboBox x:Name="ConditionBox">
+                            <ComboBoxItem Content="Новое"/>
+                            <ComboBoxItem Content="Хорошее"/>
+                            <ComboBoxItem Content="Требует ремонта"/>
+                            <ComboBoxItem Content="Списано"/>
+                            <ComboBoxItem Content="Другое"/>
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel Margin="10,0,0,0">
+                        <TextBlock Text="Ответственный"/>
+                        <TextBox x:Name="ResponsibleBox"/>
+                    </StackPanel>
+                </UniformGrid>
+
+                <TextBlock Text="Теги через запятую"/>
+                <TextBox x:Name="TagsBox"/>
+
+                <TextBlock Text="Фото"/>
+                <DockPanel Margin="0,4,0,12">
+                    <TextBox x:Name="PhotoBox" IsReadOnly="True" DockPanel.Dock="Left"/>
+                    <Button Content="Выбрать фото" DockPanel.Dock="Right" Click="ChoosePhotoButton_Click" Margin="12,4,0,12"/>
+                </DockPanel>
+
+                <StackPanel x:Name="SpecificFields"/>
+
+                <StackPanel x:Name="RelationshipsPanel"/>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>
