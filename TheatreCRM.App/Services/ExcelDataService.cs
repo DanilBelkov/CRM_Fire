@@ -17,7 +17,7 @@ public sealed class ExcelDataService(TheatreRepository repository, AppPaths path
         AddCatalogSheet(workbook, "Реквизит", items.Where(x => x.Type == CatalogItemType.Prop), includePhotos);
         AddCatalogSheet(workbook, "Костюмы", items.Where(x => x.Type == CatalogItemType.Costume), includePhotos);
         AddCatalogSheet(workbook, "Спектакли", items.Where(x => x.Type == CatalogItemType.Performance), includePhotos);
-        AddTagsSheet(workbook);
+        AddCatalogSheet(workbook, "Секторы", items.Where(x => x.Type == CatalogItemType.Sector), includePhotos);
         AddRelationshipsSheet(workbook, items);
         workbook.SaveAs(filePath);
         return filePath;
@@ -36,13 +36,14 @@ public sealed class ExcelDataService(TheatreRepository repository, AppPaths path
         imported += ImportSheet(workbook, "Реквизит", CatalogItemType.Prop);
         imported += ImportSheet(workbook, "Костюмы", CatalogItemType.Costume);
         imported += ImportSheet(workbook, "Спектакли", CatalogItemType.Performance);
+        imported += ImportSheet(workbook, "Секторы", CatalogItemType.Sector);
         return imported;
     }
 
     private static void AddCatalogSheet(XLWorkbook workbook, string name, IEnumerable<CatalogItem> items, bool includePhotos)
     {
         var sheet = workbook.Worksheets.Add(name);
-        var headers = new[] { "Id", "Название", "Описание", "Инвентарный номер", "Место хранения", "Состояние", "Ответственный", "Теги", "Фото" };
+        var headers = new[] { "Id", "Название", "Описание", "Инвентарный номер", "Место хранения", "Состояние", "Ответственный", "Секторы", "Фото" };
         for (var i = 0; i < headers.Length; i++)
         {
             sheet.Cell(1, i + 1).Value = headers[i];
@@ -59,31 +60,11 @@ public sealed class ExcelDataService(TheatreRepository repository, AppPaths path
             sheet.Cell(row, 5).Value = item.StorageLocation;
             sheet.Cell(row, 6).Value = item.Condition;
             sheet.Cell(row, 7).Value = item.ResponsiblePerson;
-            sheet.Cell(row, 8).Value = string.Join(", ", item.Tags);
+            sheet.Cell(row, 8).Value = item.Type == CatalogItemType.Sector ? "" : string.Join(", ", item.SectorNames);
             sheet.Cell(row, 9).Value = includePhotos ? item.MainPhotoPath : "";
             row++;
         }
 
-        sheet.Columns().AdjustToContents();
-    }
-
-    private void AddTagsSheet(XLWorkbook workbook)
-    {
-        var sheet = workbook.Worksheets.Add("Теги");
-        sheet.Cell(1, 1).Value = "Группа";
-        sheet.Cell(1, 2).Value = "Тег";
-        sheet.Cell(1, 3).Value = "Описание";
-        sheet.Cell(1, 4).Value = "Архив";
-        sheet.Range("A1:D1").Style.Font.Bold = true;
-        var row = 2;
-        foreach (var tag in repository.GetTags(includeArchived: true))
-        {
-            sheet.Cell(row, 1).Value = tag.GroupName;
-            sheet.Cell(row, 2).Value = tag.Name;
-            sheet.Cell(row, 3).Value = tag.Description;
-            sheet.Cell(row, 4).Value = tag.IsArchived ? "Да" : "Нет";
-            row++;
-        }
         sheet.Columns().AdjustToContents();
     }
 
@@ -136,11 +117,9 @@ public sealed class ExcelDataService(TheatreRepository repository, AppPaths path
                 Condition = row.Cell(6).GetString(),
                 ResponsiblePerson = row.Cell(7).GetString()
             };
-            foreach (var tag in row.Cell(8).GetString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            {
-                item.Tags.Add(tag);
-            }
+
             repository.Save(item);
+            LinkSectors(item, row.Cell(8).GetString());
             imported++;
         }
 
@@ -175,14 +154,47 @@ public sealed class ExcelDataService(TheatreRepository repository, AppPaths path
                 Condition = columns.ElementAtOrDefault(4)?.Trim() ?? "",
                 ResponsiblePerson = columns.ElementAtOrDefault(5)?.Trim() ?? ""
             };
-            foreach (var tag in (columns.ElementAtOrDefault(6) ?? "").Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            {
-                item.Tags.Add(tag);
-            }
+
             repository.Save(item);
+            LinkSectors(item, columns.ElementAtOrDefault(6) ?? "");
             imported++;
         }
 
         return imported;
+    }
+
+    private void LinkSectors(CatalogItem item, string rawSectorNames)
+    {
+        if (item.Type == CatalogItemType.Sector)
+        {
+            return;
+        }
+
+        var sectorIds = rawSectorNames
+            .Split([',', '|'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(name => repository.FindOrCreateSector(name).Id)
+            .Distinct()
+            .ToList();
+
+        var table = item.Type switch
+        {
+            CatalogItemType.Clothing => "SectorClothingItems",
+            CatalogItemType.Prop => "SectorProps",
+            CatalogItemType.Costume => "SectorCostumes",
+            _ => ""
+        };
+
+        var linkedColumn = item.Type switch
+        {
+            CatalogItemType.Clothing => "ClothingItemId",
+            CatalogItemType.Prop => "PropId",
+            CatalogItemType.Costume => "CostumeId",
+            _ => ""
+        };
+
+        if (!string.IsNullOrWhiteSpace(table))
+        {
+            repository.ReplaceInverseLinks(table, "SectorId", linkedColumn, item.Id, sectorIds);
+        }
     }
 }

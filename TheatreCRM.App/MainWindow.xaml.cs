@@ -1,10 +1,11 @@
+using Microsoft.Win32;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
+using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using Microsoft.Win32;
 using TheatreCRM.App.Data;
 using TheatreCRM.App.Models;
 using TheatreCRM.App.Services;
@@ -18,9 +19,8 @@ public partial class MainWindow : Window
     private readonly ExcelDataService _excelDataService;
     private readonly BackupService _backupService;
     private readonly ObservableCollection<CatalogItem> _items = [];
-    private readonly ObservableCollection<SavedView> _savedViews = [];
+    private readonly Dictionary<CatalogItemType, Dictionary<string, string>> _filters = [];
     private CatalogItemType _currentType = CatalogItemType.Clothing;
-    private bool _isLoadingFilters;
     private bool _isTrashMode;
 
     public MainWindow()
@@ -34,9 +34,6 @@ public partial class MainWindow : Window
         _backupService = new BackupService(_paths);
         TryCreateAutomaticBackup();
         ItemsList.ItemsSource = _items;
-        SavedViewsList.ItemsSource = _savedViews;
-        LoadFilters();
-        LoadSavedViews();
         LoadSection(CatalogItemType.Clothing);
     }
 
@@ -48,20 +45,15 @@ public partial class MainWindow : Window
         }
     }
 
-    private void TagsButton_Click(object sender, RoutedEventArgs e)
-    {
-        var window = new TagManagerWindow(_repository) { Owner = this };
-        window.ShowDialog();
-        LoadFilters();
-        LoadSavedViews();
-        RefreshList();
-    }
-
     private void TrashButton_Click(object sender, RoutedEventArgs e)
     {
         _isTrashMode = true;
         SectionTitle.Text = "Корзина";
-        CreateButton.Content = "Создание недоступно";
+        SectionSubtitle.Text = "";
+        CreateButton.Visibility = Visibility.Collapsed;
+        TrashButtons.Visibility = Visibility.Visible;
+        MainButtons.Visibility = Visibility.Collapsed;
+        UpdateFilterButtonHighlight();
         RefreshList();
         ClearDetails();
     }
@@ -86,15 +78,8 @@ public partial class MainWindow : Window
         }
 
         var count = _excelDataService.ImportCatalog(dialog.FileName);
-        LoadFilters();
         RefreshList();
         MessageBox.Show($"Импортировано карточек: {count}", "Импорт Excel", MessageBoxButton.OK, MessageBoxImage.Information);
-    }
-
-    private void BackupButton_Click(object sender, RoutedEventArgs e)
-    {
-        var path = _backupService.CreateBackup();
-        MessageBox.Show($"Резервная копия создана:\n{path}", "Backup", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void RestoreBackupButton_Click(object sender, RoutedEventArgs e)
@@ -111,79 +96,56 @@ public partial class MainWindow : Window
 
         _backupService.RestoreBackup(dialog.FileName);
         _repository.Initialize();
-        LoadFilters();
-        LoadSavedViews();
+        _filters.Clear();
+        UpdateFilterButtonHighlight();
         RefreshList();
         MessageBox.Show("Backup восстановлен. Перед восстановлением создана текущая резервная копия.", "Backup", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
-    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e) => RefreshList();
-
-    private void TagGroupFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void ManageUsersButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_isLoadingFilters)
+        var window = new UsersWindow(_repository, _paths) { Owner = this };
+        window.ShowDialog();
+    }
+
+    private void FilterButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isTrashMode)
+            return;
+
+        var currentFilter = _filters.TryGetValue(_currentType, out var existing) ? existing : null;
+        var window = new FilterWindow(_repository, _currentType, currentFilter) { Owner = this };
+        if (window.ShowDialog() == true && window.FilterValues is not null)
         {
+            _filters[_currentType] = window.FilterValues;
+            UpdateFilterButtonHighlight();
+            RefreshList();
+        }
+    }
+
+    private void UpdateFilterButtonHighlight()
+    {
+        if (_isTrashMode || !_filters.TryGetValue(_currentType, out var filterValues) || filterValues.Count == 0)
+        {
+            FilterButton.Background = new SolidColorBrush(Color.FromRgb(29, 41, 37));
+            FilterButton.BorderBrush = new SolidColorBrush(Color.FromRgb(43, 58, 53));
+            FilterButton.Foreground = new SolidColorBrush(Color.FromRgb(238, 245, 241));
             return;
         }
 
-        LoadTagsForSelectedGroup();
-        RefreshList();
+        FilterButton.Background = new SolidColorBrush(Color.FromRgb(33, 166, 107));
+        FilterButton.BorderBrush = new SolidColorBrush(Color.FromRgb(44, 199, 127));
+        FilterButton.Foreground = new SolidColorBrush(Color.FromRgb(6, 17, 12));
     }
 
-    private void TagFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (!_isLoadingFilters)
-        {
-            RefreshList();
-        }
-    }
-
-    private void GroupByTagCheck_Changed(object sender, RoutedEventArgs e)
-    {
-        if (!_isLoadingFilters)
-        {
-            RefreshList();
-        }
-    }
-
-    private void SaveViewButton_Click(object sender, RoutedEventArgs e)
-    {
-        var tagGroup = TagGroupFilter.SelectedItem as TagGroup;
-        var tag = TagFilter.SelectedItem as Tag;
-        var view = new SavedView
-        {
-            SectionType = _currentType,
-            TagGroupId = tagGroup?.Id,
-            TagId = tag?.Id,
-            GroupByTagGroup = GroupByTagCheck.IsChecked == true,
-            IsShownInSidebar = true
-        };
-
-        var window = new SavedViewWindow(view) { Owner = this };
-        if (window.ShowDialog() == true)
-        {
-            _repository.SaveView(view);
-            LoadSavedViews();
-        }
-    }
+    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e) => RefreshList();
 
     private void ClearFiltersButton_Click(object sender, RoutedEventArgs e)
     {
-        _isLoadingFilters = true;
-        TagGroupFilter.SelectedItem = null;
-        TagFilter.ItemsSource = null;
-        TagFilter.SelectedItem = null;
-        GroupByTagCheck.IsChecked = false;
-        _isLoadingFilters = false;
+        SearchBox.Text = "";
+        _filters.Remove(_currentType);
+        UpdateFilterButtonHighlight();
         RefreshList();
-    }
-
-    private void SavedView_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { Tag: SavedView view })
-        {
-            ApplySavedView(view);
-        }
     }
 
     private void CreateButton_Click(object sender, RoutedEventArgs e)
@@ -193,7 +155,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var item = new CatalogItem { Type = _currentType, Title = _currentType.CreateTitle() };
+        var item = new CatalogItem { Type = _currentType };
         OpenEditor(item);
     }
 
@@ -240,6 +202,14 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ItemsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (ItemsList.SelectedItem is CatalogItem item && !_isTrashMode)
+        {
+            OpenEditor(item);
+        }
+    }
+
     private void RelatedItem_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: CatalogSummary summary })
@@ -261,19 +231,18 @@ public partial class MainWindow : Window
         _isTrashMode = false;
         _currentType = type;
         SectionTitle.Text = type.ToRussian();
-        CreateButton.Content = $"Создать: {type.CreateTitle().ToLowerInvariant()}";
+        CreateButton.Visibility = Visibility.Visible;
+        CreateButton.Content = $"Создать";
+        TrashButtons.Visibility = Visibility.Collapsed;
+        MainButtons.Visibility = Visibility.Visible;
         SearchBox.Text = "";
+        UpdateFilterButtonHighlight();
         RefreshList();
         ClearDetails();
     }
 
     private void RefreshList()
     {
-        if (_repository is null)
-        {
-            return;
-        }
-
         _items.Clear();
         if (_isTrashMode)
         {
@@ -282,32 +251,100 @@ public partial class MainWindow : Window
                 _items.Add(deletedItem);
             }
             SectionSubtitle.Text = $"{_items.Count} карточек в корзине";
-            ApplyGrouping();
             return;
         }
 
-        var tagGroup = TagGroupFilter.SelectedItem as TagGroup;
-        var tag = TagFilter.SelectedItem as Tag;
-        var groupId = GroupByTagCheck.IsChecked == true ? tagGroup?.Id : null;
-        foreach (var item in _repository.Search(_currentType, SearchBox.Text, groupId, tag?.Id))
+        var searchText = SearchBox.Text.Trim();
+        var items = _repository.Search(_currentType, searchText);
+
+        if (_filters.TryGetValue(_currentType, out var filterValues) && filterValues.Count > 0)
+        {
+            items = items.Where(item => MatchFilter(item, filterValues)).ToList();
+        }
+
+        foreach (var item in items)
         {
             _items.Add(item);
         }
 
         SectionSubtitle.Text = $"{_items.Count} карточек";
-        ApplyGrouping();
+    }
+
+    private static bool MatchFilter(CatalogItem item, Dictionary<string, string> filterValues)
+    {
+        foreach (var (field, value) in filterValues)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                continue;
+
+            // Фильтрация по связанным сущностям
+            if (field == "RelatedClothing")
+            {
+                var matching = item.RelatedItems.Any(r => r.Type == CatalogItemType.Clothing && r.Title.Contains(value, StringComparison.CurrentCultureIgnoreCase));
+                if (!matching) return false;
+                continue;
+            }
+            if (field == "RelatedProps")
+            {
+                var matching = item.RelatedItems.Any(r => r.Type == CatalogItemType.Prop && r.Title.Contains(value, StringComparison.CurrentCultureIgnoreCase));
+                if (!matching) return false;
+                continue;
+            }
+            if (field == "RelatedCostumes")
+            {
+                var matching = item.RelatedItems.Any(r => r.Type == CatalogItemType.Costume && r.Title.Contains(value, StringComparison.CurrentCultureIgnoreCase));
+                if (!matching) return false;
+                continue;
+            }
+            if (field == "RelatedPerformances")
+            {
+                var matching = item.RelatedItems.Any(r => r.Type == CatalogItemType.Performance && r.Title.Contains(value, StringComparison.CurrentCultureIgnoreCase));
+                if (!matching) return false;
+                continue;
+            }
+            if (field == "RelatedSectors")
+            {
+                var matching = item.RelatedItems.Any(r => r.Type == CatalogItemType.Sector && r.Title.Contains(value, StringComparison.CurrentCultureIgnoreCase));
+                if (!matching) return false;
+                continue;
+            }
+
+            var fieldValue = field switch
+            {
+                "Title" => item.Title,
+                "Description" => item.Description,
+                "InventoryNumber" => item.InventoryNumber,
+                "StorageLocation" => item.StorageLocation,
+                "Condition" => item.Condition,
+                "ResponsiblePerson" => item.ResponsiblePerson,
+                "Notes" => item.Notes,
+                "Size" => item.Size,
+                "Color" => item.Color,
+                "Material" => item.Material,
+                "CareInstructions" => item.CareInstructions,
+                "Dimensions" => item.Dimensions,
+                "Weight" => item.Weight,
+                "Fragility" => item.Fragility,
+                "CharacterName" => item.CharacterName,
+                "ActorName" => item.ActorName,
+                "Director" => item.Director,
+                "PremiereDate" => item.PremiereDate,
+                "Season" => item.Season,
+                "Movement" => item.Movement,
+                _ => ""
+            };
+
+            if (!fieldValue.Contains(value, StringComparison.CurrentCultureIgnoreCase))
+                return false;
+        }
+        return true;
     }
 
     private void OpenEditor(CatalogItem item)
     {
-        var editor = new EntityEditorWindow(_repository, _paths, item)
-        {
-            Owner = this
-        };
-
+        var editor = new EntityEditorWindow(_repository, _paths, item) { Owner = this };
         if (editor.ShowDialog() == true)
         {
-            LoadFilters();
             RefreshList();
             var saved = _items.FirstOrDefault(x => x.Id == item.Id);
             if (saved is not null)
@@ -321,18 +358,45 @@ public partial class MainWindow : Window
     {
         DetailsTitle.Text = item.Title;
         DetailsDescription.Text = string.IsNullOrWhiteSpace(item.Description) ? "Описание не заполнено." : item.Description;
-        DetailsMeta.Text = string.Join(Environment.NewLine, new[]
+
+        var metaLines = new List<string>
         {
             $"Раздел: {item.Type.ToRussian()}",
             $"Инвентарный номер: {ValueOrDash(item.InventoryNumber)}",
             $"Место хранения: {ValueOrDash(item.StorageLocation)}",
             $"Состояние: {ValueOrDash(item.Condition)}",
             $"Ответственный: {ValueOrDash(item.ResponsiblePerson)}",
-            $"Теги: {item.TagsText}"
-        });
+        };
+
+        if (item.Type is CatalogItemType.Clothing or CatalogItemType.Prop or CatalogItemType.Costume)
+        {
+            if (!string.IsNullOrWhiteSpace(item.Movement))
+                metaLines.Add($"Передвижение: {item.Movement}");
+        }
+        if (item.Type == CatalogItemType.Prop)
+        {
+            if (!string.IsNullOrWhiteSpace(item.Dimensions))
+                metaLines.Add($"Габариты: {item.Dimensions}");
+            if (!string.IsNullOrWhiteSpace(item.Fragility))
+                metaLines.Add($"Хрупкость: {item.Fragility}");
+        }
+        metaLines.Add(item.SectorsText);
+
+        DetailsMeta.Text = string.Join(Environment.NewLine, metaLines);
         RelatedItems.ItemsSource = item.RelatedItems;
+
         AuditItems.ItemsSource = _repository.GetAuditLog(item.Id);
-        SetDetailsImage(item.MainPhotoPath);
+        HistoryExpander.IsExpanded = false;
+
+        var photos = _repository.GetPhotos(item.Id);
+        if (photos.Count > 0)
+        {
+            SetDetailsImage(photos[0]);
+        }
+        else
+        {
+            SetDetailsImage(item.MainPhotoPath);
+        }
     }
 
     private void ClearDetails()
@@ -343,6 +407,7 @@ public partial class MainWindow : Window
         RelatedItems.ItemsSource = null;
         AuditItems.ItemsSource = null;
         DetailsImage.Source = null;
+        HistoryExpander.IsExpanded = false;
     }
 
     private void RestoreItemButton_Click(object sender, RoutedEventArgs e)
@@ -373,66 +438,6 @@ public partial class MainWindow : Window
         _repository.PermanentlyDelete(item.Id);
         RefreshList();
         ClearDetails();
-    }
-
-    private void LoadFilters()
-    {
-        _isLoadingFilters = true;
-        var previousGroupId = (TagGroupFilter.SelectedItem as TagGroup)?.Id;
-        TagGroupFilter.ItemsSource = _repository.GetTagGroups();
-        TagGroupFilter.SelectedItem = TagGroupFilter.Items.OfType<TagGroup>().FirstOrDefault(group => group.Id == previousGroupId);
-        LoadTagsForSelectedGroup();
-        _isLoadingFilters = false;
-    }
-
-    private void LoadTagsForSelectedGroup()
-    {
-        var previousTagId = (TagFilter.SelectedItem as Tag)?.Id;
-        var group = TagGroupFilter.SelectedItem as TagGroup;
-        TagFilter.ItemsSource = group is null ? null : _repository.GetTags(group.Id);
-        TagFilter.SelectedItem = TagFilter.Items.OfType<Tag>().FirstOrDefault(tag => tag.Id == previousTagId);
-    }
-
-    private void LoadSavedViews()
-    {
-        _savedViews.Clear();
-        foreach (var view in _repository.GetSavedViews(sidebarOnly: true))
-        {
-            _savedViews.Add(view);
-        }
-    }
-
-    private void ApplySavedView(SavedView view)
-    {
-        _isLoadingFilters = true;
-        _currentType = view.SectionType;
-        SectionTitle.Text = view.SectionType.ToRussian();
-        CreateButton.Content = $"Создать: {view.SectionType.CreateTitle().ToLowerInvariant()}";
-        SearchBox.Text = "";
-        TagGroupFilter.SelectedItem = TagGroupFilter.Items.OfType<TagGroup>().FirstOrDefault(group => group.Id == view.TagGroupId);
-        LoadTagsForSelectedGroup();
-        TagFilter.SelectedItem = TagFilter.Items.OfType<Tag>().FirstOrDefault(tag => tag.Id == view.TagId);
-        GroupByTagCheck.IsChecked = view.GroupByTagGroup;
-        _isLoadingFilters = false;
-        RefreshList();
-        ClearDetails();
-    }
-
-    private void ApplyGrouping()
-    {
-        var view = CollectionViewSource.GetDefaultView(ItemsList.ItemsSource);
-        if (view is null)
-        {
-            return;
-        }
-
-        view.GroupDescriptions.Clear();
-        if (GroupByTagCheck.IsChecked == true && TagGroupFilter.SelectedItem is not null)
-        {
-            view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(CatalogItem.GroupHeader)));
-        }
-
-        view.Refresh();
     }
 
     private void SetDetailsImage(string relativePath)
@@ -466,7 +471,6 @@ public partial class MainWindow : Window
         }
         catch
         {
-            // Автоматический backup не должен блокировать запуск приложения.
         }
     }
 }

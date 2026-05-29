@@ -1,0 +1,110 @@
+<Window x:Class="TheatreCRM.App.UsersWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Управление пользователями" Height="500" Width="460"
+        Background="#101413" WindowStartupLocation="CenterOwner"
+        BorderBrush="#1E2A26" BorderThickness="1">
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#EEF5F1"/>
+            <Setter Property="FontSize" Value="14"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Foreground" Value="#EEF5F1"/>
+            <Setter Property="Background" Value="#17201D"/>
+            <Setter Property="BorderBrush" Value="#2B3A35"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="9,7"/>
+            <Setter Property="Margin" Value="0,4,0,8"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <!-- Задаем CornerRadius для этого Border -->
+                        <Border CornerRadius="8" 
+        Background="{TemplateBinding Background}"
+        BorderBrush="{TemplateBinding BorderBrush}"
+        BorderThickness="{TemplateBinding BorderThickness}">
+
+                            <!-- Обязательный хост для отображения текста -->
+                            <ScrollViewer x:Name="PART_ContentHost" 
+                  Margin="4,0" 
+                  VerticalAlignment="Top"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Foreground" Value="#EEF5F1"/>
+            <Setter Property="Background" Value="#1D2925"/>
+            <Setter Property="BorderBrush" Value="#2B3A35"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="14,9"/>
+            <Setter Property="Margin" Value="0,4"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="#21A66B"/>
+            <Setter Property="BorderBrush" Value="#2CC77F"/>
+            <Setter Property="Foreground" Value="#06110C"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="#3A1D22"/>
+            <Setter Property="BorderBrush" Value="#6A2E37"/>
+        </Style>
+        <Style TargetType="ListBox">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBox">
+                        <Border Name="Bd" CornerRadius="10" BorderThickness="{TemplateBinding BorderThickness}" 
+                    BorderBrush="{TemplateBinding BorderBrush}" 
+                    Background="{TemplateBinding Background}" 
+                    SnapsToDevicePixels="true">
+                            <ScrollViewer Padding="{TemplateBinding Padding}" Focusable="false">
+                                <ItemsPresenter SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                            </ScrollViewer>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    <DockPanel Margin="24">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Закрыть" Click="CloseButton_Click" MinWidth="100" Padding="18,9"/>
+        </StackPanel>
+
+        <StackPanel>
+            <TextBlock Text="Пользователи" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,16"/>
+
+            <ListBox x:Name="UsersList" Height="180"
+                     Background="#17201D" BorderBrush="#2B3A35"
+                     Foreground="#EEF5F1" FontSize="14"
+                     DisplayMemberPath="FullName"/>
+
+            <DockPanel Margin="0,12,0,0">
+                <Button DockPanel.Dock="Right" Content="Добавить" Click="AddButton_Click"
+                        Style="{StaticResource PrimaryButton}" MinWidth="100" Margin="10,4,0,4"/>
+                <TextBox x:Name="NameBox" DockPanel.Dock="Left"/>
+            </DockPanel>
+
+            <Button Content="Удалить выбранного" Click="DeleteButton_Click"
+                    Style="{StaticResource DangerButton}" Margin="0,8,0,0" HorizontalAlignment="Left" MinWidth="180"/>
+        </StackPanel>
+    </DockPanel>
+</Window>

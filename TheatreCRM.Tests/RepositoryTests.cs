@@ -26,19 +26,17 @@ public sealed class RepositoryTests : IDisposable
     }
 
     [Fact]
-    public void SaveAndSearch_Clothing_ReturnsCreatedItemWithTags()
+    public void SaveAndSearch_Clothing_ReturnsCreatedItem()
     {
         var item = new CatalogItem
         {
             Type = CatalogItemType.Clothing,
             Title = "Зеленая шляпа",
             Description = "Шляпа для весенней сцены",
-            StorageLocation = "Сектор A",
+            StorageLocation = "Стеллаж 1",
             Condition = "Хорошее",
             Size = "M"
         };
-        item.Tags.Add("весна");
-        item.Tags.Add("головной убор");
 
         _repository.Save(item);
 
@@ -46,29 +44,7 @@ public sealed class RepositoryTests : IDisposable
 
         Assert.Single(result);
         Assert.Equal("Зеленая шляпа", result[0].Title);
-        Assert.Contains("весна", result[0].Tags);
         Assert.Equal("M", result[0].Size);
-    }
-
-    [Fact]
-    public void SaveAndSearch_Prop_ReturnsCreatedItem()
-    {
-        var item = new CatalogItem
-        {
-            Type = CatalogItemType.Prop,
-            Title = "Фонарь",
-            Description = "Ручной фонарь для сцены в лесу",
-            Dimensions = "30 см",
-            Fragility = "Хрупкий"
-        };
-
-        _repository.Save(item);
-
-        var result = _repository.Search(CatalogItemType.Prop, "лесу");
-
-        Assert.Single(result);
-        Assert.Equal("Фонарь", result[0].Title);
-        Assert.Equal("30 см", result[0].Dimensions);
     }
 
     [Fact]
@@ -109,123 +85,73 @@ public sealed class RepositoryTests : IDisposable
     }
 
     [Fact]
-    public void SoftDelete_HidesItemFromSearch()
+    public void Sector_CanContainClothingCostumesAndProps()
     {
-        var item = SaveItem(CatalogItemType.Clothing, "Старый плащ");
+        var coat = SaveItem(CatalogItemType.Clothing, "Пальто");
+        var sword = SaveItem(CatalogItemType.Prop, "Шпага");
+        var costume = SaveItem(CatalogItemType.Costume, "Мундир");
+        var sector = SaveItem(CatalogItemType.Sector, "Исторический сектор");
 
-        _repository.SoftDelete(item.Id);
+        _repository.ReplaceLinks("SectorClothingItems", "SectorId", "ClothingItemId", sector.Id, [coat.Id]);
+        _repository.ReplaceLinks("SectorProps", "SectorId", "PropId", sector.Id, [sword.Id]);
+        _repository.ReplaceLinks("SectorCostumes", "SectorId", "CostumeId", sector.Id, [costume.Id]);
 
-        var result = _repository.Search(CatalogItemType.Clothing, "плащ");
+        var loadedSector = _repository.GetById(sector.Id);
+        var loadedCoat = _repository.GetById(coat.Id);
 
-        Assert.Empty(result);
+        Assert.NotNull(loadedSector);
+        Assert.Contains(loadedSector.RelatedItems, item => item.Id == coat.Id);
+        Assert.Contains(loadedSector.RelatedItems, item => item.Id == sword.Id);
+        Assert.Contains(loadedSector.RelatedItems, item => item.Id == costume.Id);
+
+        Assert.NotNull(loadedCoat);
+        Assert.Contains("Исторический сектор", loadedCoat.SectorNames);
     }
 
     [Fact]
-    public void Tags_CanBeGroupedAndAssignedToAllCatalogTypes()
+    public void ResponsiblePerson_IsStoredInUserDirectory()
     {
-        var group = new TagGroup { Name = "Сезон" };
-        _repository.SaveTagGroup(group);
-        var tag = new Tag { GroupId = group.Id, Name = "Зима" };
-        _repository.SaveTag(tag);
-
-        foreach (var type in new[] { CatalogItemType.Clothing, CatalogItemType.Prop, CatalogItemType.Costume, CatalogItemType.Performance })
-        {
-            var item = SaveItem(type, $"{type} Зима");
-            item.Tags.Add("Зима");
-            _repository.Save(item);
-        }
-
-        Assert.Single(_repository.Search(CatalogItemType.Clothing, "", group.Id, tag.Id));
-        Assert.Single(_repository.Search(CatalogItemType.Prop, "", group.Id, tag.Id));
-        Assert.Single(_repository.Search(CatalogItemType.Costume, "", group.Id, tag.Id));
-        Assert.Single(_repository.Search(CatalogItemType.Performance, "", group.Id, tag.Id));
-    }
-
-    [Fact]
-    public void TagReplace_MovesLinksWithoutDeletingCatalogItems()
-    {
-        var group = new TagGroup { Name = "Эпоха" };
-        _repository.SaveTagGroup(group);
-        var oldTag = new Tag { GroupId = group.Id, Name = "Барокко" };
-        var newTag = new Tag { GroupId = group.Id, Name = "XVIII век" };
-        _repository.SaveTag(oldTag);
-        _repository.SaveTag(newTag);
         var item = SaveItem(CatalogItemType.Prop, "Канделябр");
-        item.Tags.Add("Барокко");
+        item.ResponsiblePerson = "Иван Петров";
+
         _repository.Save(item);
 
-        _repository.ReplaceTag(oldTag.Id, newTag.Id);
-
-        Assert.Equal(0, _repository.GetTagUsageCount(oldTag.Id));
-        Assert.Equal(1, _repository.GetTagUsageCount(newTag.Id));
-        Assert.NotNull(_repository.GetById(item.Id));
+        Assert.Contains(_repository.GetUsers(), user => user.FullName == "Иван Петров");
     }
 
     [Fact]
-    public void ArchiveTag_KeepsExistingLinks()
+    public void Search_FiltersByAllFieldsIncludingResponsibleAndStorage()
     {
-        var group = new TagGroup { Name = "Сектор" };
-        _repository.SaveTagGroup(group);
-        var tag = new Tag { GroupId = group.Id, Name = "Стеллаж 1" };
-        _repository.SaveTag(tag);
-        var item = SaveItem(CatalogItemType.Clothing, "Пальто");
-        item.Tags.Add("Стеллаж 1");
+        var item = SaveItem(CatalogItemType.Clothing, "Плащ");
+        item.StorageLocation = "Комната А";
+        item.ResponsiblePerson = "Мария Соколова";
         _repository.Save(item);
 
-        _repository.ArchiveTag(tag.Id);
-
-        Assert.Equal(1, _repository.GetTagUsageCount(tag.Id));
-        Assert.Empty(_repository.GetTags(group.Id));
-        Assert.Contains(_repository.GetTags(group.Id, includeArchived: true), x => x.Id == tag.Id && x.IsArchived);
+        Assert.Single(_repository.Search(CatalogItemType.Clothing, "Комната А"));
+        Assert.Single(_repository.Search(CatalogItemType.Clothing, "Мария"));
     }
 
     [Fact]
-    public void GroupingByTagGroup_ReturnsItemsWithGroupHeaderAndWithoutTagBucket()
+    public void SavedView_PersistsSectionAndSearchText()
     {
-        var group = new TagGroup { Name = "Материал" };
-        _repository.SaveTagGroup(group);
-        var tag = new Tag { GroupId = group.Id, Name = "Шелк" };
-        _repository.SaveTag(tag);
-        var silk = SaveItem(CatalogItemType.Clothing, "Платок");
-        silk.Tags.Add("Шелк");
-        _repository.Save(silk);
-        SaveItem(CatalogItemType.Clothing, "Жилет");
-
-        var result = _repository.Search(CatalogItemType.Clothing, "", group.Id);
-
-        Assert.Contains(result, item => item.Title == "Платок" && item.GroupHeader == "Шелк");
-        Assert.Contains(result, item => item.Title == "Жилет" && item.GroupHeader == "Без тега");
-    }
-
-    [Fact]
-    public void SavedView_PersistsSectionTagFiltersAndGrouping()
-    {
-        var group = new TagGroup { Name = "Вид хранения" };
-        _repository.SaveTagGroup(group);
-        var tag = new Tag { GroupId = group.Id, Name = "Короб" };
-        _repository.SaveTag(tag);
         var view = new SavedView
         {
-            Name = "Одежда в коробах",
+            Name = "Одежда Марии",
             SectionType = CatalogItemType.Clothing,
-            TagGroupId = group.Id,
-            TagId = tag.Id,
-            GroupByTagGroup = true,
+            SearchText = "Мария",
             IsShownInSidebar = true
         };
 
         _repository.SaveView(view);
 
         var loaded = Assert.Single(_repository.GetSavedViews(sidebarOnly: true));
-        Assert.Equal("Одежда в коробах", loaded.Name);
+        Assert.Equal("Одежда Марии", loaded.Name);
         Assert.Equal(CatalogItemType.Clothing, loaded.SectionType);
-        Assert.Equal(group.Id, loaded.TagGroupId);
-        Assert.Equal(tag.Id, loaded.TagId);
-        Assert.True(loaded.GroupByTagGroup);
+        Assert.Equal("Мария", loaded.SearchText);
     }
 
     [Fact]
-    public void FtsSearch_FindsByDescriptionAndUpdatesAfterEdit()
+    public void FtsLikeSearch_UpdatesAfterEdit()
     {
         var item = SaveItem(CatalogItemType.Prop, "Книга");
         item.Description = "Старинный фолиант для библиотеки";
@@ -296,8 +222,8 @@ public sealed class RepositoryTests : IDisposable
         paths.EnsureCreated();
         var service = new ExcelDataService(_repository, paths);
         var item = SaveItem(CatalogItemType.Clothing, "Экспортируемая шляпа");
-        item.Tags.Add("excel");
-        _repository.Save(item);
+        var sector = SaveItem(CatalogItemType.Sector, "Сектор А");
+        _repository.ReplaceLinks("SectorClothingItems", "SectorId", "ClothingItemId", sector.Id, [item.Id]);
 
         var exportPath = service.ExportDatabase(includePhotos: false);
 
@@ -315,18 +241,18 @@ public sealed class RepositoryTests : IDisposable
     }
 
     [Fact]
-    public void CsvImport_CreatesCatalogRows()
+    public void CsvImport_CreatesCatalogRowsAndLinksSectors()
     {
         var csvPath = Path.Combine(_rootPath, "import.csv");
-        File.WriteAllText(csvPath, "Название;Описание;Инвентарный номер;Место хранения;Состояние;Ответственный;Теги\nCSV шляпа;Описание;INV-1;Сектор;Хорошее;Иван;лето|шляпа");
+        File.WriteAllText(csvPath, "Название;Описание;Инвентарный номер;Место хранения;Состояние;Ответственный;Секторы\nCSV шляпа;Описание;INV-1;Склад;Хорошее;Иван;Лето|Шляпный сектор");
         var service = new ExcelDataService(_repository, new AppPaths());
 
         var imported = service.ImportCatalog(csvPath);
 
         Assert.Equal(1, imported);
         var item = Assert.Single(_repository.Search(CatalogItemType.Clothing, "CSV"));
-        Assert.Contains("лето", item.Tags);
-        Assert.Contains("шляпа", item.Tags);
+        Assert.Contains("Лето", item.SectorNames);
+        Assert.Contains("Шляпный сектор", item.SectorNames);
     }
 
     private CatalogItem SaveItem(CatalogItemType type, string title)

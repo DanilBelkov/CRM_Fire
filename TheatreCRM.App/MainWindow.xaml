@@ -4,7 +4,8 @@
         xmlns:models="clr-namespace:TheatreCRM.App.Models"
         Title="Театральная CRM" Height="760" Width="1240"
         MinHeight="640" MinWidth="1040"
-        Background="#101413" WindowStartupLocation="CenterScreen">
+        Background="#101413" WindowStartupLocation="CenterScreen"
+        BorderBrush="#1E2A26" BorderThickness="1">
     <Window.Resources>
         <Style TargetType="Button">
             <Setter Property="Foreground" Value="#EEF5F1"/>
@@ -14,6 +15,7 @@
             <Setter Property="Padding" Value="14,9"/>
             <Setter Property="Margin" Value="0,4"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="14"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -39,114 +41,105 @@
             <Setter Property="BorderBrush" Value="#2B3A35"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="10,8"/>
-        </Style>
-        <Style TargetType="ComboBox">
-            <Setter Property="Margin" Value="0,4"/>
-            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <!-- Задаем CornerRadius для этого Border -->
+                        <Border CornerRadius="8" 
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}">
+
+                            <!-- Обязательный хост для отображения текста -->
+                            <ScrollViewer x:Name="PART_ContentHost" 
+                                  Margin="4,0" 
+                                  VerticalAlignment="Top"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="250"/>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="340"/>
+            <ColumnDefinition Width="*" MinWidth="500"/>
+            <ColumnDefinition Width="Auto" MinWidth="6"/>
+            <ColumnDefinition Width="4*" MinWidth="300"/>
         </Grid.ColumnDefinitions>
 
+        <!-- Левая панель: навигация и настройки -->
         <Border Grid.Column="0" Background="#0C100F" BorderBrush="#1E2A26" BorderThickness="0,0,1,0">
-            <DockPanel Margin="18">
-                <StackPanel DockPanel.Dock="Top">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="18">
                     <TextBlock Text="Театральная CRM" Foreground="#EEF5F1" FontSize="22" FontWeight="SemiBold"/>
-                    <TextBlock Text="Одежда, реквизит, костюмы, спектакли" Foreground="#8EA39A" TextWrapping="Wrap" Margin="0,6,0,22"/>
-                    <Button Content="Одежда" Tag="{x:Static models:CatalogItemType.Clothing}" Click="SectionButton_Click"/>
-                    <Button Content="Реквизит" Tag="{x:Static models:CatalogItemType.Prop}" Click="SectionButton_Click"/>
-                    <Button Content="Костюмы" Tag="{x:Static models:CatalogItemType.Costume}" Click="SectionButton_Click"/>
-                    <Button Content="Спектакли" Tag="{x:Static models:CatalogItemType.Performance}" Click="SectionButton_Click"/>
-                    <Button Content="Теги и группы" Click="TagsButton_Click" Margin="0,18,0,4"/>
-                    <Button Content="Корзина" Click="TrashButton_Click"/>
-                    <Button Content="Экспорт Excel" Click="ExportButton_Click" Margin="0,18,0,4"/>
-                    <Button Content="Импорт Excel" Click="ImportButton_Click"/>
-                    <Button Content="Создать backup" Click="BackupButton_Click"/>
-                    <Button Content="Восстановить backup" Click="RestoreBackupButton_Click"/>
+                    <TextBlock Text="Одежда, реквизит, костюмы, спектакли и секторы" Foreground="#8EA39A" TextWrapping="Wrap" Margin="0,6,0,22" FontSize="14"/>
 
-                    <TextBlock Text="Мои вкладки" Foreground="#EEF5F1" FontWeight="SemiBold" Margin="0,22,0,8"/>
-                    <ItemsControl x:Name="SavedViewsList">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type models:SavedView}">
-                                <Button Content="{Binding Name}" Tag="{Binding}" Click="SavedView_Click" HorizontalContentAlignment="Left"/>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <Button Content="Одежда на подбор" Tag="{x:Static models:CatalogItemType.Clothing}" Click="SectionButton_Click" FontSize="14"/>
+                    <Button Content="Реквизит" Tag="{x:Static models:CatalogItemType.Prop}" Click="SectionButton_Click" FontSize="14"/>
+                    <Button Content="Костюмы" Tag="{x:Static models:CatalogItemType.Costume}" Click="SectionButton_Click" FontSize="14"/>
+                    <Button Content="Спектакли" Tag="{x:Static models:CatalogItemType.Performance}" Click="SectionButton_Click" FontSize="14"/>
+                    <Button Content="Секторы" Tag="{x:Static models:CatalogItemType.Sector}" Click="SectionButton_Click" Margin="0,12,0,4" FontSize="14"/>
+                    <Button Content="Корзина" Click="TrashButton_Click" FontSize="14"/>
+
+                    <!-- Сворачиваемый блок настроек (2.1) -->
+                    <Expander Header="Настройки" Foreground="#EEF5F1" FontSize="14" IsExpanded="False" Margin="0,18,0,0">
+                        <StackPanel>
+                            <Button Content="Экспорт Excel" Click="ExportButton_Click" FontSize="14"/>
+                            <Button Content="Импорт Excel" Click="ImportButton_Click" FontSize="14"/>
+                            <Button Content="Восстановить backup" Click="RestoreBackupButton_Click" FontSize="14"/>
+                            <Button Content="Пользователи" Click="ManageUsersButton_Click" FontSize="14" Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Expander>
+
+                    <TextBlock DockPanel.Dock="Bottom" Text="Данные хранятся локально рядом с приложением."
+                               Foreground="#66776F" TextWrapping="Wrap" FontSize="12" Margin="0,22,0,0"/>
                 </StackPanel>
-                <TextBlock DockPanel.Dock="Bottom" Text="Данные хранятся локально в папке data рядом с приложением."
-                           Foreground="#66776F" TextWrapping="Wrap" FontSize="12"/>
-            </DockPanel>
+            </ScrollViewer>
         </Border>
 
+        <!-- Центр: список и поиск -->
         <Grid Grid.Column="1" Margin="24">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
+            <!-- Заголовок раздела -->
             <DockPanel Grid.Row="0" LastChildFill="False">
                 <StackPanel DockPanel.Dock="Left">
-                    <TextBlock x:Name="SectionTitle" Text="Одежда" Foreground="#EEF5F1" FontSize="28" FontWeight="SemiBold"/>
-                    <TextBlock x:Name="SectionSubtitle" Text="0 карточек" Foreground="#8EA39A" Margin="0,4,0,0"/>
+                    <TextBlock x:Name="SectionTitle" Text="Одежда на подбор" Foreground="#EEF5F1" FontSize="28" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="SectionSubtitle" Text="0 карточек" Foreground="#8EA39A" Margin="0,4,0,0" FontSize="14"/>
                 </StackPanel>
-                <Button DockPanel.Dock="Right" x:Name="CreateButton" Content="Создать" Style="{StaticResource PrimaryButton}" Click="CreateButton_Click" MinWidth="120"/>
+                <Button DockPanel.Dock="Right" x:Name="CreateButton" Content="Создать" Style="{StaticResource PrimaryButton}" Click="CreateButton_Click" MinWidth="120" Padding="18,9"/>
             </DockPanel>
 
-            <TextBox Grid.Row="1" x:Name="SearchBox" Margin="0,18,0,10"
-                     TextChanged="SearchBox_TextChanged"
-                     ToolTip="Поиск по названию и описанию"/>
-
-            <Grid Grid.Row="2" Margin="0,0,0,14">
+            <!-- Строка поиска и фильтр -->
+            <Grid Grid.Row="1" Margin="0,18,0,14">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="1.2*"/>
-                    <ColumnDefinition Width="1.2*"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                    <TextBlock Text="Группа тегов" Foreground="#8EA39A"/>
-                    <ComboBox x:Name="TagGroupFilter" DisplayMemberPath="Name" SelectionChanged="TagGroupFilter_SelectionChanged"/>
-                </StackPanel>
-                <StackPanel Grid.Column="1" Margin="10,0,10,0">
-                    <TextBlock Text="Тег" Foreground="#8EA39A"/>
-                    <ComboBox x:Name="TagFilter" DisplayMemberPath="DisplayName" SelectionChanged="TagFilter_SelectionChanged"/>
-                </StackPanel>
-                <CheckBox Grid.Column="2" x:Name="GroupByTagCheck" Content="Группировать" Foreground="#EEF5F1"
-                          VerticalAlignment="Bottom" Margin="10,0,16,10" Checked="GroupByTagCheck_Changed" Unchecked="GroupByTagCheck_Changed"/>
-                <CheckBox Grid.Column="3" x:Name="SemanticSearchCheck" Content="Смысловой поиск" Foreground="#8EA39A"
-                          IsEnabled="False" ToolTip="Опциональный локальный режим будет добавлен позже; сейчас используется быстрый FTS5."
-                          VerticalAlignment="Bottom" Margin="0,0,16,10"/>
-                <Button Grid.Column="4" Content="Сохранить вкладку" VerticalAlignment="Bottom" Click="SaveViewButton_Click"/>
-                <Button Grid.Column="5" Content="Сбросить" VerticalAlignment="Bottom" Click="ClearFiltersButton_Click" Margin="10,4,0,4"/>
+                <TextBox Grid.Column="0" x:Name="SearchBox"
+                         TextChanged="SearchBox_TextChanged"
+                         ToolTip="Фильтр по всем полям карточки" FontSize="14"/>
+                <Button Grid.Column="1" x:Name="FilterButton" Content="Фильтр" Margin="12,4,0,4" Click="FilterButton_Click" Padding="18,9" MinWidth="100" FontSize="14"/>
+                <Button Grid.Column="2" Content="Сбросить" Margin="12,4,0,4" Click="ClearFiltersButton_Click" Padding="18,9" MinWidth="100" FontSize="14"/>
             </Grid>
 
-            <ListBox Grid.Row="3" x:Name="ItemsList" Background="Transparent" BorderThickness="0"
+            <!-- Список сущностей -->
+            <ListBox Grid.Row="2" x:Name="ItemsList" Background="Transparent" BorderThickness="0"
                      SelectionChanged="ItemsList_SelectionChanged"
+                     MouseDoubleClick="ItemsList_MouseDoubleClick"
                      ScrollViewer.CanContentScroll="True"
                      VirtualizingPanel.IsVirtualizing="True">
-                <ListBox.GroupStyle>
-                    <GroupStyle>
-                        <GroupStyle.HeaderTemplate>
-                            <DataTemplate>
-                                <Border Background="#0F2A20" CornerRadius="8" Padding="10,6" Margin="0,12,0,8">
-                                    <TextBlock Text="{Binding Name}" Foreground="#48D08B" FontWeight="SemiBold"/>
-                                </Border>
-                            </DataTemplate>
-                        </GroupStyle.HeaderTemplate>
-                    </GroupStyle>
-                </ListBox.GroupStyle>
                 <ListBox.ItemTemplate>
                     <DataTemplate DataType="{x:Type models:CatalogItem}">
-                        <Border Background="#17201D" BorderBrush="#26342F" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,10">
+                        <Border Background="#17201D" BorderBrush="#26342F" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,5,0,5">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -154,12 +147,12 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel>
                                     <TextBlock Text="{Binding Title}" Foreground="#EEF5F1" FontSize="17" FontWeight="SemiBold"/>
-                                    <TextBlock Text="{Binding Description}" Foreground="#B8C7C0" TextTrimming="CharacterEllipsis" Margin="0,5,0,0"/>
-                                    <TextBlock Text="{Binding Subtitle}" Foreground="#8EA39A" Margin="0,7,0,0"/>
-                                    <TextBlock Text="{Binding TagsText}" Foreground="#48D08B" Margin="0,7,0,0"/>
+                                    <TextBlock Text="{Binding Description}" Foreground="#B8C7C0" TextTrimming="CharacterEllipsis" Margin="0,5,0,0" FontSize="14"/>
+                                    <TextBlock Text="{Binding Subtitle}" Foreground="#8EA39A" Margin="0,7,0,0" FontSize="14"/>
+                                    <TextBlock Text="{Binding SectorsText}" Foreground="#48D08B" Margin="0,7,0,0" FontSize="14"/>
                                 </StackPanel>
                                 <TextBlock Grid.Column="1" Text="{Binding UpdatedAt, StringFormat='{}{0:dd.MM.yyyy}'}"
-                                           Foreground="#66776F" VerticalAlignment="Top" Margin="16,0,0,0"/>
+                                           Foreground="#66776F" VerticalAlignment="Top" Margin="16,0,0,0" FontSize="14"/>
                             </Grid>
                         </Border>
                     </DataTemplate>
@@ -167,32 +160,49 @@
             </ListBox>
         </Grid>
 
-        <Border Grid.Column="2" Background="#121917" BorderBrush="#1E2A26" BorderThickness="1,0,0,0">
+        <!-- Шторка (GridSplitter) между списком и превью -->
+        <GridSplitter Grid.Column="2" Width="6" Background="#1E2A26" 
+                      ResizeBehavior="PreviousAndNext"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch"/>
+
+        <!-- Правая панель: превью карточки + история -->
+        <Border Grid.Column="3" Background="#121917" BorderBrush="#1E2A26" BorderThickness="1,0,0,0">
             <ScrollViewer>
                 <StackPanel Margin="22">
                     <TextBlock Text="Карточка" Foreground="#EEF5F1" FontSize="22" FontWeight="SemiBold"/>
-                    <Image x:Name="DetailsImage" Height="350" Stretch="UniformToFill" Margin="0,16,0,12"/>
+                    <Image x:Name="DetailsImage" Height="350" Stretch="Uniform" Margin="0,16,0,12"/>
                     <TextBlock x:Name="DetailsTitle" Text="Выберите карточку" Foreground="#EEF5F1" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                    <TextBlock x:Name="DetailsDescription" Foreground="#B8C7C0" Margin="0,10,0,0" TextWrapping="Wrap"/>
-                    <TextBlock x:Name="DetailsMeta" Foreground="#8EA39A" Margin="0,14,0,0" TextWrapping="Wrap"/>
+                    <TextBlock x:Name="DetailsDescription" Foreground="#B8C7C0" Margin="0,10,0,0" TextWrapping="Wrap" FontSize="14"/>
+                    <TextBlock x:Name="DetailsMeta" Foreground="#8EA39A" Margin="0,14,0,0" TextWrapping="Wrap" FontSize="14"/>
                     <TextBlock Text="Связи" Foreground="#EEF5F1" FontSize="16" FontWeight="SemiBold" Margin="0,22,0,8"/>
                     <ItemsControl x:Name="RelatedItems">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="{x:Type models:CatalogSummary}">
-                                <Button Content="{Binding Display}" Tag="{Binding}" Click="RelatedItem_Click" HorizontalContentAlignment="Left"/>
+                                <Button Content="{Binding Display}" Tag="{Binding}" Click="RelatedItem_Click" HorizontalContentAlignment="Left" FontSize="14"/>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <StackPanel Orientation="Horizontal" Margin="0,22,0,0">
-                        <Button Content="Редактировать" Click="EditButton_Click" MinWidth="138"/>
-                        <Button Content="Удалить" Click="DeleteButton_Click" MinWidth="94" Margin="10,4,0,4" Background="#3A1D22" BorderBrush="#6A2E37"/>
+
+                    <!-- Кнопки действий -->
+                    <StackPanel x:Name="MainButtons" Orientation="Vertical" Margin="0,16,0,0">
+                        <Button Content="Редактировать" Click="EditButton_Click" MinWidth="140" MaxWidth="250" FontSize="14"/>
+                        <Button Content="Удалить" Click="DeleteButton_Click" MinWidth="140" MaxWidth="250" Background="#3A1D22" BorderBrush="#6A2E37" FontSize="14"/>
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                        <Button Content="Восстановить" Click="RestoreItemButton_Click" MinWidth="138"/>
-                        <Button Content="Удалить навсегда" Click="PermanentDeleteButton_Click" MinWidth="140" Margin="10,4,0,4" Background="#3A1D22" BorderBrush="#6A2E37"/>
+
+                    <!-- Кнопки "Удалить навсегда" и "Восстановить" - только в корзине (2.4) -->
+                    <StackPanel x:Name="TrashButtons" Orientation="Vertical" Margin="0,8,0,0" Visibility="Collapsed">
+                        <Button Content="Восстановить" Click="RestoreItemButton_Click" MinWidth="140" MaxWidth="250" FontSize="14"/>
+                        <Button Content="Удалить навсегда" Click="PermanentDeleteButton_Click" MinWidth="140" MaxWidth="250" Background="#3A1D22" BorderBrush="#6A2E37" FontSize="14"/>
                     </StackPanel>
-                    <TextBlock Text="История" Foreground="#EEF5F1" FontSize="16" FontWeight="SemiBold" Margin="0,22,0,8"/>
-                    <ItemsControl x:Name="AuditItems"/>
+
+                    <!-- Сворачиваемый блок истории (2.6) -->
+                    <Expander x:Name="HistoryExpander" Header="История" Foreground="#EEF5F1" FontSize="16" FontWeight="SemiBold"
+                              IsExpanded="False" Margin="0,16,0,0">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" MaxHeight="250">
+                            <ItemsControl x:Name="AuditItems"/>
+                        </ScrollViewer>
+                    </Expander>
                 </StackPanel>
             </ScrollViewer>
         </Border>

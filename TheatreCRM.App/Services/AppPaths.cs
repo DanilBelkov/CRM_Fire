@@ -36,6 +36,20 @@ public sealed class AppPaths
         Directory.CreateDirectory(SettingsPath);
     }
 
+    public string ToRelativePhotoPath(string absolutePath)
+    {
+        if (string.IsNullOrWhiteSpace(absolutePath))
+            return "";
+
+        var dataDir = DataPath.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        if (absolutePath.StartsWith(dataDir, System.StringComparison.OrdinalIgnoreCase))
+        {
+            var relative = absolutePath.Substring(dataDir.Length);
+            return relative.Replace(Path.DirectorySeparatorChar, '/');
+        }
+        return "";
+    }
+
     public string ToAbsolutePhotoPath(string relativePath)
     {
         if (string.IsNullOrWhiteSpace(relativePath))
