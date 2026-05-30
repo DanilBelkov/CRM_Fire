@@ -4,6 +4,15 @@
              xmlns:local="clr-namespace:TheatreCRM.App"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-         
+
+        <!-- Стиль, который автоматически применится ко всем Window в проекте -->
+        <Style TargetType="Window">
+            <Setter Property="Background" Value="#FF17201D"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="8"/>
+            <Setter Property="Foreground" Value="#EEF5F1"/>
+            <Setter Property="Icon" Value="/free-icon-butt-7671678.png"/>
+        </Style>
+        
     </Application.Resources>
 </Application>

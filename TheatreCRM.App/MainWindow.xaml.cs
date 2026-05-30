@@ -32,9 +32,9 @@ public partial class MainWindow : Window
         _repository.Initialize();
         _excelDataService = new ExcelDataService(_repository, _paths);
         _backupService = new BackupService(_paths);
-        TryCreateAutomaticBackup();
         ItemsList.ItemsSource = _items;
         LoadSection(CatalogItemType.Clothing);
+        _ = TryCreateAutomaticBackup();
     }
 
     private void SectionButton_Click(object sender, RoutedEventArgs e)
@@ -82,7 +82,7 @@ public partial class MainWindow : Window
         MessageBox.Show($"Импортировано карточек: {count}", "Импорт Excel", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
-    private void RestoreBackupButton_Click(object sender, RoutedEventArgs e)
+    private async void RestoreBackupButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFileDialog
         {
@@ -94,7 +94,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _backupService.RestoreBackup(dialog.FileName);
+        await Task.Run(() => _backupService.RestoreBackup(dialog.FileName));
         _repository.Initialize();
         _filters.Clear();
         UpdateFilterButtonHighlight();
@@ -156,7 +156,7 @@ public partial class MainWindow : Window
         }
 
         var item = new CatalogItem { Type = _currentType };
-        OpenEditor(item);
+        OpenEditor(item, isEditing: true);
     }
 
     private void EditButton_Click(object sender, RoutedEventArgs e)
@@ -340,9 +340,9 @@ public partial class MainWindow : Window
         return true;
     }
 
-    private void OpenEditor(CatalogItem item)
+    private void OpenEditor(CatalogItem item, bool isEditing = false)
     {
-        var editor = new EntityEditorWindow(_repository, _paths, item) { Owner = this };
+        var editor = new EntityEditorWindow(_repository, _paths, item, isEditing: isEditing) { Owner = this };
         if (editor.ShowDialog() == true)
         {
             RefreshList();
@@ -459,14 +459,15 @@ public partial class MainWindow : Window
 
     private static string ValueOrDash(string value) => string.IsNullOrWhiteSpace(value) ? "-" : value;
 
-    private void TryCreateAutomaticBackup()
+
+    private async Task TryCreateAutomaticBackup()
     {
         try
         {
             var todayPrefix = $"theatre-crm-backup-{DateTime.Now:yyyyMMdd}";
             if (!Directory.Exists(_paths.BackupsPath) || !Directory.EnumerateFiles(_paths.BackupsPath, $"{todayPrefix}*.zip").Any())
             {
-                _backupService.CreateBackup();
+                await Task.Run(() => _backupService.CreateBackup());
             }
         }
         catch

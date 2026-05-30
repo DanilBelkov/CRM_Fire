@@ -24,7 +24,7 @@ public partial class EntityEditorWindow : Window
     private readonly List<CatalogSummary> _allRelatedItems = [];
     private bool _isEditing;
 
-    public EntityEditorWindow(TheatreRepository repository, AppPaths paths, CatalogItem item)
+    public EntityEditorWindow(TheatreRepository repository, AppPaths paths, CatalogItem item, bool isEditing = false)
     {
         InitializeComponent();
         _repository = repository;
@@ -33,7 +33,14 @@ public partial class EntityEditorWindow : Window
         BuildForm();
         LoadValues();
         BuildRelationshipsView();
-        SetViewMode();
+        if (isEditing)
+        {
+            SetEditMode();
+        }
+        else
+        {
+            SetViewMode();
+        }
     }
 
     private void BuildForm()
@@ -403,9 +410,7 @@ public partial class EntityEditorWindow : Window
 
         // Фото
         AddPhotoButton.Visibility = Visibility.Collapsed;
-        var deleteBtns = FindVisualChildren<Button>(PhotosList).Where(b => b.Name == "DeletePhotoBtn");
-        foreach (var btn in deleteBtns)
-            btn.Visibility = Visibility.Collapsed;
+        SetDeleteButtonsVisibility(false);
 
         // Связи
         RelationshipsPanelView.Visibility = Visibility.Visible;
@@ -435,9 +440,7 @@ public partial class EntityEditorWindow : Window
 
         // Фото
         AddPhotoButton.Visibility = Visibility.Visible;
-        var deleteBtns = FindVisualChildren<Button>(PhotosList).Where(b => b.Name == "DeletePhotoBtn");
-        foreach (var btn in deleteBtns)
-            btn.Visibility = Visibility.Visible;
+        SetDeleteButtonsVisibility(true);
 
         // Связи
         RelationshipsPanelView.Visibility = Visibility.Collapsed;
@@ -463,6 +466,11 @@ public partial class EntityEditorWindow : Window
     {
         combo.Visibility = Visibility.Visible;
         readOnlyBox.Visibility = Visibility.Collapsed;
+    }
+
+    private void SetDeleteButtonsVisibility(bool visible)
+    {
+        PhotosList.Tag = visible ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void BuildRelationshipsView()

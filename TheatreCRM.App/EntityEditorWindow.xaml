@@ -35,7 +35,7 @@
         <Style TargetType="ComboBox">
             <Setter Property="Foreground" Value="#EEF5F1"/>
             <Setter Property="Margin" Value="0,4,0,12"/>
-            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="Padding" Value="15,9"/>
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -231,7 +231,8 @@
                                         <Button x:Name="DeletePhotoBtn" Content="×" Width="20" Height="20" Padding="0" Margin="0"
                                                 Foreground="#EEF5F1" Background="#992B2B" BorderBrush="Transparent"
                                                 HorizontalAlignment="Right" VerticalAlignment="Top"
-                                                Tag="{Binding}" Click="DeleteGalleryPhoto_Click"/>
+                                                Tag="{Binding}" Click="DeleteGalleryPhoto_Click"
+                                                Visibility="{Binding RelativeSource={RelativeSource AncestorType=ListBox}, Path=Tag, FallbackValue=Visible}"/>
                                     </Grid>
                                 </Border>
                             </DataTemplate>

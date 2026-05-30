@@ -5,7 +5,7 @@
         Title="Театральная CRM" Height="760" Width="1240"
         MinHeight="640" MinWidth="1040"
         Background="#101413" WindowStartupLocation="CenterScreen"
-        BorderBrush="#1E2A26" BorderThickness="1">
+        BorderBrush="#1E2A26" BorderThickness="1" WindowStyle="ThreeDBorderWindow">
     <Window.Resources>
         <Style TargetType="Button">
             <Setter Property="Foreground" Value="#EEF5F1"/>
